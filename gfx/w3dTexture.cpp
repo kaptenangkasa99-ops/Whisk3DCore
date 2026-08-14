@@ -40,6 +40,11 @@
 #include "w3dFilesystem.h" // lectura de archivos UNIFICADA del Core (asset del APK o archivo real)
 #include <vector>
 
+// GL_CLAMP_TO_EDGE es GL 1.2+; el <GL/gl.h> 1.1 de Windows no lo declara.
+#ifndef GL_CLAMP_TO_EDGE
+#define GL_CLAMP_TO_EDGE 0x812F
+#endif
+
 namespace w3dEngine {
 
 // PIXELADO GLOBAL de la escena 3D (ver w3dGraphics.h). Vive ACA y no en el

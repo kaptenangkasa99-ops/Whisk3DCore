@@ -68,6 +68,7 @@
     typedef void (APIENTRY *W3D_PFNDELBUF)(GLsizei, const GLuint*);
     typedef void (APIENTRY *W3D_PFNBINDBUF)(GLenum, GLuint);
     typedef void (APIENTRY *W3D_PFNBUFDATA)(GLenum, ptrdiff_t, const void*, GLenum);
+    typedef void (APIENTRY *W3D_PFNBLENDEQ)(GLenum); // glBlendEquation (GL 1.4): tambien por wglGetProcAddress
     static W3D_PFNGENBUF  w3d_glGenBuffers    = 0;
     static W3D_PFNDELBUF  w3d_glDeleteBuffers = 0;
     static W3D_PFNBINDBUF w3d_glBindBuffer    = 0;
@@ -642,7 +643,15 @@ static void PonerBlendEq(int eq) {   // 0 = FUNC_ADD, 1 = REVERSE_SUBTRACT
     if (gBlendEqCache == eq) return;
     gBlendEqCache = eq;
     g_statStateChanges++;
-    glBlendEquation(eq ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD);
+    const GLenum e = (GLenum)(eq ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD);
+#if defined(_WIN32) && !defined(W3D_SYMBIAN)
+    // opengl32 solo exporta GL 1.1: glBlendEquation (1.4) se carga por wglGetProcAddress
+    // (contexto ya activo cuando se dibuja). Si el driver no lo tiene, se deja el eq previo.
+    static W3D_PFNBLENDEQ pfn = (W3D_PFNBLENDEQ)wglGetProcAddress("glBlendEquation");
+    if (pfn) pfn(e);
+#else
+    glBlendEquation(e);
+#endif
 }
 #endif
 // LA ECUACION TAMBIEN: el que pide "alpha comun" espera FUNC_ADD. Si el ultimo
