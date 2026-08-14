@@ -15,6 +15,7 @@
 #include <set>
 #include <algorithm>
 
+#include "base/crossplatform.h"       // W3D_OVERRIDE (C++03/RVCT) + MeshIndex, para las subclases de Object
 #include "base/W3dInteractionState.h" // InteractionMode/estado (el Core NO depende del header del editor)
 #include "objects/W3dConstraint.h"   // los constraints son una PROPIEDAD de cada objeto
 

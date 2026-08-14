@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cstring>
 #include <cstdio>   // aviso de COW en consola
+#include <iostream> // std::cout/cerr (en RVCT no llega transitivo)
 #include "io/W3dRecursos.h"  // frames compartidos entre instancias (tipo ANIM)
 
 

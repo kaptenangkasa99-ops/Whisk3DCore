@@ -1565,7 +1565,7 @@ void Mesh::RenderObject() {
         bool anyFancy = false;
         if (!solido) for (size_t gg = 0; gg < materialsGroup.size(); gg++){ Material* mt = materialsGroup[gg].material;
             if (mt && (mt->chrome || mt->normalMap || !mt->capas.empty())) { anyFancy = true; break; } }
-        // (P3) override de visibilidad por triangulo ACTIVO: se decide ACA (antes del
+        // (P3) W3D_OVERRIDE de visibilidad por triangulo ACTIVO: se decide ACA (antes del
         // setup del VBO) porque cambia el camino de los indices: los del subconjunto
         // van como INDICES DE CLIENTE sobre los atributos del VBO estatico. El IBO
         // estatico (la malla completa) NO SE TOCA NUNCA MAS al cambiar de celda: el
