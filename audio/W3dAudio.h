@@ -63,7 +63,8 @@ void W3dSoundStop(int voice);        // para una voz por su id (no-op si ya term
 void W3dSoundStopFade(int voice, float fadeSeg);
 void W3dSoundStopAll();
 void W3dSoundSetVolume(int voice, float volume);
-void W3dAudioMasterVolume(float v);  // volumen global 0..1
+void W3dAudioMasterVolume(float v);  // volumen global 0..1 (master de usuario)
+void W3dAudioJuegoVolume(float v);   // volumen del JUEGO 0..1 (lo setea la tarjeta Juego; indep. del master)
 
 // Lo llama el BACKEND de salida para llenar su buffer (frames = pares L/R, stereo 16-bit).
 // Lo define el mixer del Core; corre en el hilo de audio (bajo exclusion del backend).

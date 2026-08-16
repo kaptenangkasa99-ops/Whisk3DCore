@@ -263,13 +263,18 @@ void W3dSoundSetVolume(int voice, float volume) {
 
 void W3dAudioMasterVolume(float v) { s_master = v < 0 ? 0 : (v > 1 ? 1 : v); }
 
+// volumen del JUEGO (0..1): un SEGUNDO escalar, independiente del master de usuario, para que el aplicar() del
+// volumen de usuario no lo pise. Lo setea la tarjeta Juego (0..100 -> /100) y se aplica al abrir el .w3d.
+static float s_juego = 1.0f;
+void W3dAudioJuegoVolume(float v) { s_juego = v < 0 ? 0 : (v > 1 ? 1 : v); }
+
 // Corre en el hilo de audio (el backend garantiza exclusion con los cambios de voces).
 void W3dAudioMix(short* out, int frames) {
     for (int i = 0; i < frames * 2; i++) out[i] = 0;
     for (int vi = 0; vi < MAX_VOICES; vi++) {
         Voice& v = s_voices[vi];
         if (!v.active) continue;
-        float g = v.vol * s_master;
+        float g = v.vol * s_master * s_juego;
         const short* p = v.s->pcm;
         int fr = v.s->frames;
         float fpos = v.pos;
