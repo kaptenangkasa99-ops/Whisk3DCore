@@ -1014,9 +1014,27 @@ static void SembrarRandom(lua_State* L) {
     lua_pop(L, 1);   // math
 }
 
+// print de lua -> LOG del Core. El print estandar de luaopen_base escribe a stdout, y en Windows eso ABRE UNA
+// CONSOLA (la "terminal blanca" que no deberia aparecer nunca: Whisk3D tiene su propio log). Concatena los args
+// con tab igual que el print de Lua, y respeta __tostring.
+static int LPrint(lua_State* L) {
+    int n = lua_gettop(L);
+    std::string s;
+    for (int i = 1; i <= n; i++) {
+        if (i > 1) s += '\t';
+        size_t len = 0;
+        const char* p = luaL_tolstring(L, i, &len);   // convierte cualquier valor a string
+        if (p) s.append(p, len);
+        lua_pop(L, 1);                                  // luaL_tolstring empuja el string: sacarlo
+    }
+    w3dLogfW("[lua] %s", s.c_str());
+    return 0;
+}
+
 // stdlib SEGURA: base + table + string + math (sin io/os: un juego no toca discos)
 static void AbrirLibs(lua_State* L) {
     luaL_requiref(L, LUA_GNAME, luaopen_base, 1);       lua_pop(L, 1);
+    lua_pushcfunction(L, LPrint); lua_setglobal(L, "print");   // pisa el print de stdout por el que va al log
     luaL_requiref(L, LUA_TABLIBNAME, luaopen_table, 1); lua_pop(L, 1);
     luaL_requiref(L, LUA_STRLIBNAME, luaopen_string, 1);lua_pop(L, 1);
     luaL_requiref(L, LUA_MATHLIBNAME, luaopen_math, 1); lua_pop(L, 1);

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cstdio>   // aviso de COW en consola
 #include <iostream> // std::cout/cerr (en RVCT no llega transitivo)
+#include "base/w3dlog.h" // log PROPIO: nunca std::cout (abria la consola blanca al cargar frames de vertex-anim)
 #include "io/W3dRecursos.h"  // frames compartidos entre instancias (tipo ANIM)
 
 
@@ -1527,8 +1528,8 @@ void LoadVertexFrames(Mesh* mesh){
 
         if (anim->frames.empty()) {
             anim->LoadFrames();
-            std::cout << "Anim '"<< anim->name <<"' con " << anim->frames.size() << " frames, Speed: " << anim->speed << "\n";
-            std::cout << "Animar Normals: "<< anim->UseNormals << "\n";
+            w3dLogf("Anim '%s' con %d frames, Speed: %g (Normals: %d)",
+                    anim->name.c_str(), (int)anim->frames.size(), (double)anim->speed, (int)anim->UseNormals);
         }
     }
 }
@@ -1540,6 +1541,28 @@ void UpdateAnimations(float dtSeg){
         if (ActiveAnimKind == 3 && ActiveAnimMesh &&
             VertexAnimationActives[i]->meshToAnim == ActiveAnimMesh) continue;
         VertexAnimationActives[i]->UpdateAnimation(dtSeg);
+    }
+}
+
+// Posa la malla con vertex-anim ACTIVA en el timeline (ActiveAnimKind==3) al frame del PLAYHEAD (CurrentFrame).
+// Es el mismo bloque que corre en PC (main.cpp): se llama por frame; el cache interno (serial/anim/frame) solo
+// re-evalua al cambiar. El loop de Symbian FALTABA llamarlo -> al dar Play/scrubbear un clip (ej "correr") la
+// timeline avanzaba pero la malla vertex-animada no cambiaba (UpdateAnimations la saltea a proposito: kind 3).
+void AplicarVertexAnimTimeline(){
+    extern int CurrentFrame;
+    if (ActiveAnimKind == 3 && ActiveAnimMesh) {
+        VertexAnimationActive* va = FindTargetAnim(ActiveAnimMesh);
+        int ai = va ? va->currentAnim : -1;
+        if (ai >= 0 && ai < (int)ActiveAnimMesh->animations.size() && ActiveAnimMesh->animations[ai] &&
+            !ActiveAnimMesh->animations[ai]->frames.empty()) {
+            static unsigned int lastSerial = 0; static int lastAnim = -1, lastFrame = -999999;
+            if (ActiveAnimMesh->serial != lastSerial || ai != lastAnim || CurrentFrame != lastFrame) {
+                lastSerial = ActiveAnimMesh->serial; lastAnim = ai; lastFrame = CurrentFrame;
+                VertexAnimation* an = ActiveAnimMesh->animations[ai];
+                an->target = ActiveAnimMesh;
+                EvalVertexAnim(*an, ActiveAnimMesh, (float)CurrentFrame);
+            }
+        }
     }
 }
 
