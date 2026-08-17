@@ -1143,12 +1143,12 @@ void SearchLoop(){
     std::set<Object*> visited;
     std::set<Object*> stack;
 
-    std::cout << "Analizando árbol para loops..." << std::endl;
+    w3dLogf("Analizando arbol para loops...");   // log PROPIO, nunca stdout (abria la consola blanca)
 
     if (DetectLoop(SceneCollection, visited, stack)) {
-        std::cout << "\n🟥 RESULTADO: Hay bucles en la jerarquía!\n" << std::endl;
+        w3dLogfW("RESULTADO: hay bucles en la jerarquia!");
     } else {
-        std::cout << "\n🟩 No se detectaron loops. Árbol sano.\n" << std::endl;
+        w3dLogf("No se detectaron loops. Arbol sano.");
     }
 }
 
@@ -1414,6 +1414,31 @@ void ChangeVisibilityObj(){
         ObjActivo->visible = !ObjActivo->visible;
         //apagar luces en caso de que era una luz o sus hijas eran luces
         if (!ObjActivo->visible && w3dRenderLuces) ApagarLucesHijas(ObjActivo);
+    }
+}
+
+// visibilidad de RENDER del objeto activo (distinta de 'visible', que oculta en el EDITOR): tecla '3' del
+// outliner en el N95. Mismo gate que ChangeVisibilityObj (object mode, navegando).
+void ChangeRenderizableObj(){
+    if (InteractionMode == ObjectMode && estado == editNavegacion && SceneCollection && ObjActivo){
+        ObjActivo->renderizable = !ObjActivo->renderizable;
+    }
+}
+
+// FLECHA IZQUIERDA en el outliner: si el activo esta desplegado y tiene hijos, lo pliega; si YA esta plegado
+// (o es hoja) y tiene padre, pliega al PADRE y lo selecciona (sube un nivel). Antes solo hacia desplegado=false,
+// asi que re-apretar izquierda sobre un hijo ya plegado no hacia nada.
+void OutlinerColapsarIzquierda(){
+    if (!(SceneCollection && ObjActivo)) return;
+    if (ObjActivo->desplegado && !ObjActivo->Childrens.empty()){
+        ObjActivo->desplegado = false;
+        return;
+    }
+    Object* p = ObjActivo->Parent;
+    if (p && p != SceneCollection){
+        p->desplegado = false;
+        DeseleccionarTodo();
+        p->Seleccionar();
     }
 }
 

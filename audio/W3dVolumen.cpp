@@ -62,6 +62,18 @@ void VolumenSet(float v) {
     aplicar();
 }
 
+// Igual que VolumenSet pero SIN persistir: es el volumen de ARRANQUE de un proyecto, no una
+// preferencia del usuario. Asi abrir un .w3d con "volumen: 0.5" no le pisa para siempre el
+// volumen global que tenia. gListo se marca por si el proyecto se aplica antes que VolumenInit
+// (evita que un Init posterior vuelva a leer el 0.6 de la config y tape el valor del proyecto).
+void VolumenAplicarProyecto(float v) {
+    if (v < 0.0f) v = 0.0f;
+    if (v > 1.0f) v = 1.0f;
+    gListo = true;
+    gVol = v;
+    aplicar();
+}
+
 void VolumenSetMute(bool m) {
     gMute = m;
     ConfigSetInt("audio.mute", m ? 1 : 0);

@@ -7,6 +7,11 @@
 
 #include <stdio.h>
 #include <stdarg.h>
+#ifndef W3D_SYMBIAN
+#include <time.h>     // clock()/CLOCKS_PER_SEC (w3dTickMs en no-Symbian; Symbian usa User::NTickCount)
+#endif
+#include <iostream>   // std::cout/std::cerr (para w3dRedirigirCoutAlLog)
+#include <string>
 
 // nivel: 0 = INFO, 1 = WARN, 2 = ERROR
 static const char* NivelTag(int nivel) { return nivel == 2 ? "ERROR" : (nivel == 1 ? "WARN" : "INFO"); }
@@ -165,5 +170,43 @@ static void w3dLogfImpl(void (*sink)(const char*), const char* aFmt, va_list ap)
 void w3dLogf(const char* aFmt, ...)  { va_list ap; va_start(ap, aFmt); w3dLogfImpl(w3dLog,  aFmt, ap); va_end(ap); }
 void w3dLogfW(const char* aFmt, ...) { va_list ap; va_start(ap, aFmt); w3dLogfImpl(w3dLogW, aFmt, ap); va_end(ap); }
 void w3dLogfE(const char* aFmt, ...) { va_list ap; va_start(ap, aFmt); w3dLogfImpl(w3dLogE, aFmt, ap); va_end(ap); }
+
+// ---- redirigir std::cout/std::cerr AL LOG (no la consola/terminal) ---------------------------------------
+// LogCoutBuf junta caracteres hasta el '\n' y emite UNA entrada de log (w3dLogf/w3dLogfW). Se instala al arrancar
+// (main() en PC, ConstructL en Symbian). Cualquier cout/cerr olvidado en el codigo cae al log en vez de spamear
+// una terminal. Los buffers son static: viven toda la app.
+namespace {
+    class LogCoutBuf : public std::streambuf {
+        std::string linea; bool esErr;
+    public:
+        explicit LogCoutBuf(bool err) : esErr(err) {}
+    protected:
+        virtual int overflow(int c) {
+            if (c == '\n') {
+                if (!linea.empty()) { if (esErr) w3dLogfW("%s", linea.c_str()); else w3dLogf("%s", linea.c_str()); linea.clear(); }
+            } else if (c != EOF && c != '\r') {
+                linea += (char)c;
+            }
+            return c;
+        }
+    };
+}
+void w3dRedirigirCoutAlLog() {
+    static LogCoutBuf sOut(false);
+    static LogCoutBuf sErr(true);
+    std::cout.rdbuf(&sOut);
+    std::cerr.rdbuf(&sErr);
+}
+
+// ---- reloj de ms para instrumentar (ver w3dlog.h) --------------------------------------------------------
+// En Symbian e32std.h ya entro por el backend de arriba (User::NTickCount, ~ms). En el resto, clock() con
+// <time.h>. No hace falta que sea preciso: se usa para atribuir SEGUNDOS de carga a cada fase.
+unsigned long w3dTickMs() {
+#ifdef W3D_SYMBIAN
+    return (unsigned long)User::NTickCount();
+#else
+    return (unsigned long)((double)clock() * 1000.0 / (double)CLOCKS_PER_SEC);
+#endif
+}
 
 #endif // W3D_DEV_LOG

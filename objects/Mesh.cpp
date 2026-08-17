@@ -316,8 +316,6 @@ void Mesh::DesinstanciarDatos(unsigned mask, bool copiar) {
     }
     datosComp = (unsigned char)(datosComp & ~mask);
     W3dMallaDesinstanciados++;
-    printf("[malla] desinstancia '%s' capas=%u (%s)\n",
-           name.c_str(), afectadas, copiar ? "copia" : "regen");
     if (!datosComp) {
         if (W3dMallaDatosSoltarHook) W3dMallaDatosSoltarHook(datosRec);
         datosRec = NULL;

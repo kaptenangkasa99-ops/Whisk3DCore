@@ -34,6 +34,14 @@ void w3dLogfE(const char* aFmt, ...); // ERROR
 // el editor puede mostrar el log sin abrir el .log ni tocar stdout. C++03 puro.
 int          w3dLogRingCount();       // cuantas lineas hay guardadas (<= N)
 const char*  w3dLogRingLinea(int i);  // linea i (0 = la mas VIEJA); "" si i fuera de rango
+
+// redirige std::cout/std::cerr AL LOG (no a la consola/terminal). Llamar UNA vez al arrancar (PC main() y Symbian
+// ConstructL). Cualquier cout/cerr olvidado en el codigo cae al log en vez de abrir/spamear una terminal.
+void w3dRedirigirCoutAlLog();
+
+// reloj monotono en MILISEGUNDOS para medir fases (p.ej. cuanto tarda cargar un .w3d en el N95).
+// Symbian: tick del nanokernel; resto: clock(). Suficiente para medir fases de segundos.
+unsigned long w3dTickMs();
 #else
 inline void w3dLogReset() {}
 inline void w3dLog(const char*) {}
@@ -44,4 +52,6 @@ inline void w3dLogfW(const char*, ...) {}
 inline void w3dLogfE(const char*, ...) {}
 inline int         w3dLogRingCount() { return 0; }
 inline const char* w3dLogRingLinea(int) { return ""; }
+inline void        w3dRedirigirCoutAlLog() {}
+inline unsigned long w3dTickMs() { return 0; }
 #endif

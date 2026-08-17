@@ -24,6 +24,11 @@ void VolumenInit();
 void  VolumenSet(float v);   // 0..1 — volumen MAESTRO. Guarda y re-aplica.
 float VolumenGet();
 
+// Volumen INICIAL declarado POR UN PROYECTO (.w3d "volumen: 0.5"). Aplica a la sesion actual SIN
+// tocar la config del usuario: el valor vive en el .w3d, NO se vuelve el global de todos los
+// proyectos. Un .w3d sin el campo no llama a esto y el volumen queda como lo dejo el usuario.
+void  VolumenAplicarProyecto(float v);
+
 void  VolumenSetMute(bool m);       // silencio total. Guarda y re-aplica.
 bool  VolumenMute();
 

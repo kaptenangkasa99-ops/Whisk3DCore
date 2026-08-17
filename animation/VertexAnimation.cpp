@@ -7,7 +7,7 @@
 #include <iomanip>
 #include <cassert>
 #include <cstring>
-#include <cstdio>   // aviso de COW en consola
+#include <cstdlib>  // strtod/strtol: parseo de los cuadros sin sscanf (reinicia el locale por linea en Symbian)
 #include <iostream> // std::cout/cerr (en RVCT no llega transitivo)
 #include "base/w3dlog.h" // log PROPIO: nunca std::cout (abria la consola blanca al cargar frames de vertex-anim)
 #include "io/W3dRecursos.h"  // frames compartidos entre instancias (tipo ANIM)
@@ -22,24 +22,28 @@ static GLbyte NrmFloatToByte(float v) {
 }
 
 static void ParseFace(const std::string& line, Face& f) {
-    std::istringstream ss(line.substr(2));
-    std::string tok;
-
-    while (ss >> tok) {
-        FaceCorner fc;
-
-        int v = -1, t = -1, n = -1;
-
-        if (tok.find("//") != std::string::npos) {
-            sscanf(tok.c_str(), "%d//%d", &v, &n);
-        } else {
-            sscanf(tok.c_str(), "%d/%d/%d", &v, &t, &n);
+    // strtol manual (NO istringstream/sscanf por token: reinicializan el locale y en Symbian eran,
+    // junto con el 'v' de abajo, el cuello de la carga de vertex-anim). Formato "f v/vt/vn ..." o
+    // "v//vn"; solo interesan vertex (primer entero) y normal (entero tras la SEGUNDA barra).
+    const char* p = line.c_str() + 1;   // saltar la 'f'
+    while (*p) {
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p) break;
+        char* e;
+        long v = strtol(p, &e, 10);
+        if (e == p) { p++; continue; }   // token no numerico: avanzar sin colgar
+        const char* s = e;
+        const char* b1 = 0; const char* b2 = 0;
+        while (*s && *s != ' ' && *s != '\t') {
+            if (*s == '/') { if (!b1) b1 = s; else b2 = s; }
+            s++;
         }
-
-        fc.vertex = v - 1;
-        fc.normal = n - 1;
-
+        long n = b2 ? strtol(b2 + 1, NULL, 10) : 0;
+        FaceCorner fc;
+        fc.vertex = (int)v - 1;
+        fc.normal = (int)n - 1;
         f.corners.push_back(fc);
+        p = s;
     }
 }
 
@@ -175,7 +179,6 @@ void VertexAnimation::DesinstanciarFrames() {
     W3dRecursoSoltar((W3dRecurso*)datosRec, W3DREC_PERMANENTE);
     datosRec = 0;
     gAnimDesinst++;
-    printf("[anim] desinstancia '%s' (%d frames, copia)\n", name.c_str(), (int)frames.size());
 }
 
 // COPIA PROFUNDA de una vertex anim (para duplicar / separar una malla animada). Cada
@@ -287,16 +290,17 @@ bool VertexAnimation::LoadFrames() {
         while (std::getline(file, line)) {
 
             if (line.rfind("v ", 0) == 0) {
-                GLfloat x, y, z;
-                sscanf(line.c_str(), "v %f %f %f", &x, &y, &z);
-                verts.push_back(x);
-                verts.push_back(y);
-                verts.push_back(z);
+                // strtod (NO sscanf: en Symbian sscanf de floats reinicializa el locale por linea ->
+                // era EL cuello de la carga de vertex-anim, ~137 s por miles de frames en el N95).
+                char* e; const char* q = line.c_str() + 2;
+                double x = strtod(q, &e); double y = strtod(e, &e); double z = strtod(e, &e);
+                verts.push_back((GLfloat)x);
+                verts.push_back((GLfloat)y);
+                verts.push_back((GLfloat)z);
             }
             else if (UseNormals && line.rfind("vn ", 0) == 0) {
-                double nx, ny, nz;
-                sscanf(line.c_str(), "vn %lf %lf %lf", &nx, &ny, &nz);
-
+                char* e; const char* q = line.c_str() + 3;
+                double nx = strtod(q, &e); double ny = strtod(e, &e); double nz = strtod(e, &e);
                 tempNormals.push_back(NrmFloatToByte((float)nx));
                 tempNormals.push_back(NrmFloatToByte((float)ny));
                 tempNormals.push_back(NrmFloatToByte((float)nz));

@@ -614,6 +614,8 @@ float W3dDifAngCorta(float destino, float origen);
 void ApagarLucesHijas(Object* obj);
 void SetDesplegado(bool desplegado);
 void ChangeVisibilityObj();
+void ChangeRenderizableObj();     // toggle visibilidad de RENDER del activo (outliner N95, tecla 3)
+void OutlinerColapsarIzquierda(); // outliner: plegar; si ya plegado, subir al padre (tecla izquierda)
 void SeleccionarTodo(bool IncluirColecciones = false);
 // selecciona TODO siempre (no togglea como SeleccionarTodo): el menu Select>All
 // y la tecla A
