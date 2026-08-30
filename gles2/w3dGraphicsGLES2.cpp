@@ -620,13 +620,32 @@ void DrawLinesClientIdx(int count,const MeshIndex* indices){
 }
 
 // ---------------------------------------------------------------------------
-//  ESTADISTICAS: este backend no las lleva (son para el bench/overlay del editor,
-//  que corre siempre sobre el backend de escritorio). Pero el Core las NOMBRA
-//  -- Mesh.cpp cuenta mallas y el pase de particulas declara su categoria -- asi
-//  que existen como contador simple y no-op, o el juego no linkea.
+//  ESTADISTICAS: el editor y el harness leen estos contadores y los forman en el
+//  overlay / bench. Aunque este backend ES2 no usa el cache del pipeline fijo, los
+//  nombres deben existir para que linkea en Android.
 // ---------------------------------------------------------------------------
-int g_statMeshes = 0;
-void StatCategoria(StatCat){}
+int g_statDrawTris = 0;
+int g_statDrawVBO  = 0;
+int g_statIndices  = 0;
+int g_statTexBinds = 0;
+int g_statMeshes   = 0;
+int g_statStateChanges = 0;
+int g_statUploadBytes  = 0;
+int g_statTrisOpacos   = 0;
+int g_statTrisBlend    = 0;
+int g_statDcCat[StatCatCount_] = { 0, 0, 0 };
+bool g_auditarEscena = false;
+int g_auditDesyncs = 0;
+
+void StatCategoria(StatCat c) { (void)c; }
+void StatsReset() {
+    g_statDrawTris = 0; g_statDrawVBO = 0; g_statIndices = 0; g_statTexBinds = 0; g_statMeshes = 0;
+    g_statStateChanges = 0; g_statUploadBytes = 0; g_statTrisOpacos = 0; g_statTrisBlend = 0;
+    g_statDcCat[0] = g_statDcCat[1] = g_statDcCat[2] = 0;
+    g_auditDesyncs = 0;
+}
+void Finish() { glFinish(); }
+int AuditarEstado() { return 0; }
 // BUFFER OBJECTS: por ahora STUBS -> VBOSoportado()=false, asi Mesh cae al camino client-side de este backend (que
 // ya sube sus arrays a un VBO dinamico por draw). Los VBOs PERSISTENTES en el pipeline de atributos (glVertexAttrib
 // desde un VBO por-malla) son una optimizacion futura de este backend; la abstraccion ya esta lista.
