@@ -572,8 +572,11 @@ static void drawIndexed(GLenum mode,int count,const unsigned short* idx16){
 static int maxIndex(const MeshIndex* ind,int count){ int n=0; for(int i=0;i<count;i++) if((int)ind[i]+1>n) n=(int)ind[i]+1; return n; }
 static int maxIndexU16(const unsigned short* ind,int count){ int n=0; for(int i=0;i<count;i++) if((int)ind[i]+1>n) n=(int)ind[i]+1; return n; }
 
+static inline void StatDrawTri(int nIndices);
+
 void DrawTriangles(int count,const MeshIndex* indices){
     if(!ready || count<=0 || !indices) return;
+    StatDrawTri(count);
     setupState(maxIndex(indices,count));
     static std::vector<unsigned short> idx; idx.resize(count);
     for(int i=0;i<count;i++) idx[i]=(unsigned short)indices[i];
@@ -581,6 +584,7 @@ void DrawTriangles(int count,const MeshIndex* indices){
 }
 void DrawTrianglesByte(int count,const unsigned char* indices){
     if(!ready || count<=0 || !indices) return;
+    StatDrawTri(count);
     int nV=0; for(int i=0;i<count;i++) if((int)indices[i]+1>nV) nV=(int)indices[i]+1;   // bytes: sin overload
     setupState(nV);
     static std::vector<unsigned short> idx; idx.resize(count);
@@ -606,6 +610,7 @@ void DrawLineStripIndexed(int count,const unsigned short* indices){
 // ---------------------------------------------------------------------------
 void DrawTrianglesClientIdx(int count,const MeshIndex* indices){
     if(!ready || count<=0 || !indices) return;
+    StatDrawTri(count);
     setupState(maxIndex(indices,count));
     static std::vector<unsigned short> idx; idx.resize(count);
     for(int i=0;i<count;i++) idx[i]=(unsigned short)indices[i];
@@ -620,13 +625,39 @@ void DrawLinesClientIdx(int count,const MeshIndex* indices){
 }
 
 // ---------------------------------------------------------------------------
-//  ESTADISTICAS: este backend no las lleva (son para el bench/overlay del editor,
-//  que corre siempre sobre el backend de escritorio). Pero el Core las NOMBRA
-//  -- Mesh.cpp cuenta mallas y el pase de particulas declara su categoria -- asi
-//  que existen como contador simple y no-op, o el juego no linkea.
+//  ESTADISTICAS: el editor y el debug overlay leen estas variables aunque el
+//  backend de GLES2 no haga un cache de estado. Las definimos como contadores
+//  simples para que el APK del editor linkee y el overlay de rendimiento siga
+//  funcionando igual que en el backend de escritorio.
 // ---------------------------------------------------------------------------
-int g_statMeshes = 0;
-void StatCategoria(StatCat){}
+int g_statDrawTris = 0;
+int g_statDrawVBO  = 0;
+int g_statIndices  = 0;
+int g_statTexBinds = 0;
+int g_statMeshes   = 0;
+int g_statStateChanges = 0;
+int g_statUploadBytes  = 0;
+int g_statTrisOpacos   = 0;
+int g_statTrisBlend    = 0;
+int g_statDcCat[StatCatCount_] = { 0, 0, 0 };
+static int gStatCat = StatCatEscena;
+static inline void StatDrawTri(int nIndices) {
+    g_statDrawTris++; g_statIndices += nIndices;
+    g_statDcCat[gStatCat]++;
+    if (cap_blend) g_statTrisBlend += nIndices / 3;
+    else           g_statTrisOpacos += nIndices / 3;
+}
+static inline void StatDrawTriCount(int nIndices) { StatDrawTri(nIndices); }
+void StatCategoria(StatCat c) { gStatCat = (int)c; }
+void StatsReset() {
+    g_statDrawTris = 0; g_statDrawVBO = 0; g_statIndices = 0; g_statTexBinds = 0; g_statMeshes = 0;
+    g_statStateChanges = 0; g_statUploadBytes = 0; g_statTrisOpacos = 0; g_statTrisBlend = 0;
+    for (int i = 0; i < StatCatCount_; i++) g_statDcCat[i] = 0;
+    gStatCat = StatCatEscena;
+}
+bool g_auditarEscena = false;
+int g_auditDesyncs = 0;
+int AuditarEstado() { return 0; }
 // BUFFER OBJECTS: por ahora STUBS -> VBOSoportado()=false, asi Mesh cae al camino client-side de este backend (que
 // ya sube sus arrays a un VBO dinamico por draw). Los VBOs PERSISTENTES en el pipeline de atributos (glVertexAttrib
 // desde un VBO por-malla) son una optimizacion futura de este backend; la abstraccion ya esta lista.
@@ -643,8 +674,8 @@ void BindIndexVBO(unsigned int){}
 void DrawTrianglesVBO(int, int){}
 void UnbindVBOs(){}
 
-void DrawTrianglesArray(int vertexCount){ if(!ready||vertexCount<=0) return; setupState(vertexCount); glDrawArrays(GL_TRIANGLES,0,vertexCount); }
-void DrawTrianglesArrayFrom(int first,int count){ if(!ready||count<=0) return; setupState(first+count); glDrawArrays(GL_TRIANGLES,first,count); }
+void DrawTrianglesArray(int vertexCount){ if(!ready||vertexCount<=0) return; StatDrawTri(vertexCount); setupState(vertexCount); glDrawArrays(GL_TRIANGLES,0,vertexCount); }
+void DrawTrianglesArrayFrom(int first,int count){ if(!ready||count<=0) return; StatDrawTri(count); setupState(first+count); glDrawArrays(GL_TRIANGLES,first,count); }
 void DrawLines(int vertexCount){ if(!ready||vertexCount<=0) return; setupState(vertexCount); glDrawArrays(GL_LINES,0,vertexCount); }
 void DrawLineStrip(int vertexCount){ if(!ready||vertexCount<=0) return; setupState(vertexCount); glDrawArrays(GL_LINE_STRIP,0,vertexCount); }
 void DrawPoints(int vertexCount){ if(!ready||vertexCount<=0) return; setupState(vertexCount); glDrawArrays(GL_POINTS,0,vertexCount); }

@@ -27,8 +27,9 @@ function(w3d_configure_graphics_backend TARGET)
         endif()
 
     elseif(ANDROID)
-        # GLES 1.x (el build real de Android usa Android.mk/ndk-build; esto es por si se compila via CMake)
-        target_compile_definitions(${TARGET} PRIVATE W3D_GLES1)
+        # OpenGL ES 2.0: el backend de shaders del motor es el que usa Android.
+        target_compile_definitions(${TARGET} PRIVATE W3D_GLES2)
+        target_link_libraries(${TARGET} PRIVATE GLESv2)
 
     else()
         # Linux / otros UNIX: OpenGL de escritorio

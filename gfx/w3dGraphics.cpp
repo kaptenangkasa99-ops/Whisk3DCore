@@ -232,7 +232,7 @@ void PlanosRecorte(int n, const float* eq4) {
     if (n > maxN) n = maxN;
     if (n < 0) n = 0;
     for (int i = 0; i < n; i++) {
-#ifdef W3D_SYMBIAN
+#if defined(W3D_SYMBIAN) || defined(__ANDROID__)
         GLfloat p[4] = { eq4[i*4+0], eq4[i*4+1], eq4[i*4+2], eq4[i*4+3] };
         glClipPlanef((GLenum)(GL_CLIP_PLANE0 + i), p);
 #else
@@ -649,6 +649,10 @@ static void PonerBlendEq(int eq) {   // 0 = FUNC_ADD, 1 = REVERSE_SUBTRACT
     // (contexto ya activo cuando se dibuja). Si el driver no lo tiene, se deja el eq previo.
     static W3D_PFNBLENDEQ pfn = (W3D_PFNBLENDEQ)wglGetProcAddress("glBlendEquation");
     if (pfn) pfn(e);
+#elif defined(__ANDROID__)
+    // OpenGL ES 1.x expone esta funcion como glBlendEquationOES; la version fixed-function
+    // del engine la usa para las mezclas sustractivas del HUD / particulas.
+    glBlendEquationOES(e);
 #else
     glBlendEquation(e);
 #endif
