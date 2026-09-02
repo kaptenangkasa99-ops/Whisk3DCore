@@ -2,72 +2,70 @@
 #define W3DFISICA_H
 
 // ============================================================================
-//  W3dFisica — la fisica MINIMA del Core: velocidad + rebote AABB. Nada mas.
-//  Pensada para juegos simples y livianos (2D y 3D) que tienen que correr hasta
-//  en un Symbian: C++03 puro, sin motor externo, sin allocations por frame y
-//  con COSTO CERO si nadie usa velocidad (el paso sale en la primera linea).
+//  W3dFisica — MINIMAL Core physics: velocity + AABB bounce. Nothing else.
+//  Designed for simple, lightweight games (2D and 3D) that must run even on
+//  a Symbian device: pure C++03, no external engine, zero allocations per frame,
+//  and ZERO COST if no object uses velocity (the step exits on the first line).
 //
-//  QUE HACE (y que NO):
-//    * integra pos += velocidad*dt de los objetos que tienen velocidad
-//    * rebota AABB contra otro objeto, contra un rect o contra el area de otro
-//      objeto, separando para que no quede pegado
-//    * NO hay gravedad, ni masa, ni rotacion, ni friccion, ni resolucion de
-//      contactos multiples. Eso lo hace el juego en lua si lo necesita.
+//  WHAT IT DOES (and what it DOES NOT):
+//    * Integrates pos += velocity * dt for objects that have velocity.
+//    * Bounces an AABB against another object, against a rect, or against the area
+//      of another object, separating them so they don't get stuck.
+//    * NO gravity, NO mass, NO rotation, NO friction, NO multiple-contact
+//      resolution. The game handles that in Lua if needed.
 //
-//  DONDE CORRE: W3dFisicaPaso(dt) lo llaman los DOS lados con el MISMO dt, y
-//  ANTES de correr los scripts del frame:
+//  WHERE IT RUNS: W3dFisicaPaso(dt) is called on BOTH sides with the SAME dt,
+//  and BEFORE running the frame's scripts:
 //      runtime  -> W3dGameActualizar()  (Whisk3D-Examples/game/w3drun.cpp)
-//      editor   -> TickReal()           (main/script/SimJuego.cpp, el Play)
-//  Asi el juego se comporta IGUAL compilado y en el Play. El orden "primero
-//  mover, despues correr el script" es a proposito: el script ve la posicion
-//  nueva y resuelve el choque (rebotar) en el MISMO frame, antes de dibujar.
+//      editor   -> TickReal()           (main/script/SimJuego.cpp, the Play mode)
+//  This ensures the game behaves IDENTICALLY compiled vs in Play mode. The order
+//  "move first, then run the script" is intentional: the script sees the new
+//  position and resolves the collision (bounce) within the SAME frame, before rendering.
 //
-//  ESPACIOS (importante). Cada objeto se integra en SU espacio, el mismo que ya
-//  usan los binds de lua para leerlo/escribirlo:
-//    * objetos 2D (ui/texto/imagen/rect/contenedor/slice9/boton/expandir/video):
-//      LIENZO en px, centro (0,0) — igual que posPx/tamPx/cajaUI/chocan. Ejes:
-//      +x a la DERECHA, +y hacia ABAJO (es una pantalla, no un plano matematico).
-//      En el objeto la posicion se guarda como FRACCION del lienzo; la conversion
-//      px<->fraccion la hace la fisica sola (el adaptador de abajo le da el
-//      tamano del lienzo y el tamano del objeto).
-//    * objetos 3D: unidades del MOTOR, ejes del motor (Y arriba), y la posicion
-//      es LOCAL (relativa al padre), igual que posicion()/mover().
-//  El eje Z: en 3D es el eje de profundidad normal; en 2D es la profundidad en
-//  px del elemento (se integra tal cual, sin conversion). Un juego 2D deja vz=0.
+//  SPACES (Important). Each object integrates within ITS OWN space, the same one
+//  already used by Lua bindings to read/write it:
+//    * 2D objects (ui/text/image/rect/container/slice9/button/expand/video):
+//      CANVAS in px, centered at (0,0) — same as posPx/tamPx/cajaUI/chocan. Axes:
+//      +x to the RIGHT, +y DOWNWARDS (it's a screen, not a mathematical plane).
+//      In the object, position is stored as a FRACTION of the canvas; px <-> fraction
+//      conversion is handled automatically by the physics system (the adapter below
+//      provides canvas size and object size).
+//    * 3D objects: ENGINE units, engine axes (Y up), and position is LOCAL
+//      (relative to parent), same as posicion()/mover().
+//  The Z axis: in 3D, it's the normal depth axis; in 2D, it's the depth in px
+//  of the element (integrated as-is, without conversion). A 2D game leaves vz=0.
 //
-//  OJO 2D: el CUERPO MOVIL (el que tiene velocidad) se lee/escribe CRUDO
-//  (pos * lienzo), exactamente como posPx/setPosPx. Es a proposito: la fisica
-//  integra y separa escribiendo esa pos cruda, y es para los objetos que el
-//  juego mueve libremente (la pelota, las palas: hijos directos de la raiz,
-//  ancla centro, layout libre), no para widgets anclados/flex.
-//  Los OTROS operandos siguen la regla CRUDO-vs-RESUELTO (la misma de chocan
-//  en BindsJuego):
-//    * OBSTACULO de rebotar(obj, otro): si su pos cruda es autoritativa (lo
-//      dice el adaptador 'cruda' de abajo: layout libre + ancla centro) se usa
-//      la caja cruda de ESTE frame (una pala movida por el script este mismo
-//      frame pega donde esta AHORA, sin lag); si lo acomoda el layout se usa
-//      el rect RESUELTO del ultimo render (donde se dibuja de verdad).
-//    * AREA (la cancha de rebotarEn(obj, area)): SIEMPRE el rect del layout
-//      (el mismo que da cajaUI). Un area es justamente un widget que el layout
-//      acomoda, y asi el juego no tiene que recalcular ni un borde: el layout
-//      vive en el .w3dui. (Un area no se mueve por script: no hay lag posible.)
+//  2D NOTE: The MOVING BODY (the one with velocity) is read/written RAW
+//  (pos * canvas), exactly like posPx/setPosPx. This is deliberate: the physics
+//  integrates and separates by writing that raw pos, meant for objects the game
+//  moves freely (paddles, balls: direct children of the root, center anchor, free layout),
+//  not for anchored/flex widgets.
+//  OTHER operands follow the RAW-vs-RESOLVED rule (the same as chocan in BindsJuego):
+//    * OBSTACLE in rebotar(obj, otro): if its raw pos is authoritative (determined
+//      by the 'raw' adapter below: free layout + center anchor), the RAW box of
+//      THIS frame is used (a paddle moved by the script in this frame hits where it
+//      is NOW, without lag); if placed by layout, the RESOLVED rect from the last
+//      render is used (where it is actually drawn).
+//    * AREA (the court in rebotarEn(obj, area)): ALWAYS the layout rect (the same
+//      one returned by cajaUI). An area is precisely a widget positioned by layout,
+//      so the game doesn't need to recalculate borders: layout lives in .w3dui.
+//      (An area is not moved via script: no lag is possible.)
 //
-//  CAJA de colision (la que usan los rebotes):
-//    * 2D: por defecto el rect del elemento (ancho x alto en px de lienzo), el
-//      MISMO que compara chocan(). Cero configuracion.
-//    * 3D: por defecto un cubo de lado 2*RadioFoco() (el bounding de la malla)
-//      centrado en el objeto. Es una aproximacion: si no alcanza, el juego fija
-//      la caja exacta con caja(obj, ancho, alto, profundo).
+//  Collision BOX (used by bounces):
+//    * 2D: Defaults to the element's rect (width x height in canvas px), the SAME
+//      one compared by chocan(). Zero configuration required.
+//    * 3D: Defaults to a cube with side 2*RadioFoco() (mesh bounding) centered
+//      on the object. It's an approximation: if insufficient, the game sets the
+//      exact box using caja(obj, width, height, depth).
 //
-//  VIDA de los datos: la velocidad/caja de un objeto vive en una lista chica
-//  (un slot por objeto que se mueve). Se borra todo en W3dFisicaLimpiar(), que
-//  llama W3dScriptDescargarTodo() -> el Stop del editor y el fin del juego
-//  dejan la lista vacia. No se guarda nada dentro de Object.
-//  Un CAMBIO DE ESCENA no la borra (puede haber cuerpos que no son de ninguna
-//  escena): si una escena deja algo moviendose, el script la frena al salir con
-//  velocidad(obj, 0, 0) o la vuelve a fijar en su inicio().
+//  Data LIFETIME: Object velocity/box data lives in a small list (one slot per
+//  moving object). Everything is cleared in W3dFisicaLimpiar(), which calls
+//  W3dScriptDescargarTodo() -> stopping the editor or quitting the game leaves
+//  the list empty. Nothing is stored inside Object.
+//  A SCENE CHANGE does not clear it (there may be bodies that don't belong to any
+//  scene): if a scene leaves something moving, the script must stop it upon exit
+//  using velocidad(obj, 0, 0) or reset it in its inicio().
 // ============================================================================
-
 class Object;
 
 // ---- paso de simulacion ----------------------------------------------------
@@ -88,26 +86,26 @@ bool W3dFisicaHay(void);
 void W3dFisicaGetVel(Object* o, float* vx, float* vy, float* vz);
 void W3dFisicaSetVel(Object* o, float vx, float vy, float vz);
 
-// ---- adaptador 2D ----------------------------------------------------------
-// El Core NO conoce el lienzo del juego ni el Elemento2D (viven en main/), asi
-// que main/ le presta cuatro funciones (las registra BindsJuegoRegistrar, que
-// corre tanto en el editor como en el runtime):
-//   lienzo(w,h)      -> tamano del lienzo del juego en px (UI2D_TamanoLienzo)
-//   tam2d(o,anc,alt) -> tamano del objeto 2D en px de lienzo; false si no es 2D
-//   cajaui(o,...)    -> rect RESUELTO por el layout (anclas/flex) del ultimo
-//                       render, centro + tamano en px de lienzo; false si ese
-//                       objeto no se dibujo todavia. Es lo mismo que devuelve
-//                       cajaUI() en lua; se usa para las AREAS y para los
-//                       OBSTACULOS no autoritativos (ver la nota de arriba).
-//                       Puede ser NULL.
-//   cruda(o)         -> true si la pos CRUDA del objeto es AUTORITATIVA (hijo
-//                       directo de la raiz + layout libre + ancla centro: la
-//                       regla crudo-vs-resuelto de chocan, PosCrudaAutoritativa
-//                       en BindsJuego). Decide la caja del OBSTACULO de
-//                       rebotar(). NULL = todo se considera crudo (el
-//                       comportamiento historico).
-// SIN adaptador registrado la fisica trata TODO como 3D (las posiciones de los
-// objetos 2D quedarian en fracciones): los dos builds reales lo registran.
+// ---- 2D adapter ----------------------------------------------------------
+// The Core DOES NOT know the game's content in the Elemento2D (lives in main/), so
+// that main/ provides four functions (they register BindsJuegoRegistrar, which
+// runs both in the editor and in the runtime):
+// lienzo(w,h) -> size of the game lienzo in px (UI2D_SizeLienzo)
+// size2d(o,anc,alt) -> size of the 2D object in linen px; false if it is not 2D
+// cajaui(o,...) -> rect RESUELTO by the layout (anclas/flex) of the last
+// render, center + size in linen px; false yes
+// object is not released however. It's the same thing that returns
+// cajaUI() in lua; is used for the AREAS and for them
+// Non-authoritative OBSTACLES (see the top note).
+// It can be NULL.
+// cruda(o) -> true if there is CRUDA of the object is AUTORITATIVE (hijo
+// direct from the root + free layout + ancla center: there
+// regla crudo-vs-resuelto de chocan, PosCrudaAutoritativa
+// en BindsJuego). Decide the OBSTACLE box
+// rebound(). NULL = everything is considered raw (el
+// historical behavior).
+// SIN adapter registered the physics treats ALL as 3D (the positions of them
+// 2D objects fall into fractions): real builds are registered.
 typedef void (*W3dFisicaLienzoFn)(float* w, float* h);
 typedef bool (*W3dFisicaTam2DFn)(Object* o, float* ancho, float* alto);
 typedef bool (*W3dFisicaCajaUIFn)(Object* o, float* cx, float* cy, float* ancho, float* alto);

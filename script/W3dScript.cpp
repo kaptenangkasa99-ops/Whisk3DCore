@@ -39,7 +39,7 @@ static bool gFisicaAviso = false;
 static void FisicaAvisoOff() {
     if (gFisicaAviso) return;
     gFisicaAviso = true;
-    w3dLogW("script: fisica desactivada en este build (W3D_SIN_FISICA); velocidad/rebotar no hacen nada");
+    w3dLogW("script: physics disabled in this build (W3D_SIN_FISICA); speed/rebounding doesn't happen at all");
 }
 void W3dFisicaPaso(float) {}
 void W3dFisicaLimpiar(void) {}
@@ -90,10 +90,10 @@ struct W3dScriptInst {
     W3dScriptInst() : L(NULL), duenio(NULL) {}
 };
 
-// ---- estado COMPARTIDO entre scripts (ver W3dScript.h) ---------------------
-// Los lua_State estan aislados a proposito; este mapa C++ unico es el canal
-// entre scripts (fruta.lua suma, el HUD del principal lee). Vive el PLAY
-// entero y muere en W3dScriptDescargarTodo.
+// ---- SHARED state between scripts (see W3dScript.h) ---------------------
+// The lua_State are isolated by the way; This unique C++ map is the channel
+// between scripts (fruta.lua sum, the HUD of the main lee). Live the PLAY
+// enter and die in W3dScriptDescargarTodo.
 struct W3dCompartidoVal {
     int tipo;            // 0 = numero, 1 = bool, 2 = texto
     double num;
@@ -280,19 +280,19 @@ static int LOpcion(lua_State* L) {
     return 1;
 }
 
-// propiedad("frame") -> el VALOR configurado en el editor para ESTA instancia,
-// convertido al tipo del default declarado en la tabla `propiedades` (numero ->
-// number, bool -> boolean, texto -> string). Si la instancia no configuro nada,
-// devuelve el default del propio script (nil si tampoco esta declarado).
+// property("frame") -> the VALUE configured in the editor for THIS instance,
+// converted to the default type declared in the `propiedades` table (number ->
+// number, bool -> boolean, text -> string). If there is no instance, I don't configure anything,
+// return the default of the script itself (nil if it is not declared).
 static int LPropiedad(lua_State* L) {
     const char* n = luaL_checkstring(L, 1);
     lua_getfield(L, LUA_REGISTRYINDEX, "w3d_inst");
     W3dScriptInst* inst = (W3dScriptInst*)lua_touserdata(L, -1);
     lua_pop(L, 1);
-    // el default declarado (y su TIPO) sale de la tabla global `propiedades`
-    // del propio lua_State: el script ya corrio, la tabla esta viva
+// the default declared (y su TIPO) sale of the global `propiedades` table 
+// of the own lua_State: the script is running, the table is alive
     int tdecl = LUA_TNIL;
-    lua_getglobal(L, "propiedades");
+    lua_getglobal(L, "properties");
     if (lua_istable(L, -1)) {
         lua_getfield(L, -1, n);
         tdecl = lua_type(L, -1);
@@ -435,15 +435,15 @@ static int LSetConfig(lua_State* L) {
 static int LGuardarConfig(lua_State* L) { lua_pushboolean(L, w3dEngine::ConfigSave()); return 1; }
 // cargarConfig() -> relee la config del almacenamiento. Devuelve true si habia algo guardado.
 static int LCargarConfig(lua_State* L) { lua_pushboolean(L, w3dEngine::ConfigLoad()); return 1; }
-// silenciar(bool): prende/apaga el mute global (lo respeta beep()). Deja "mute" en la config
-// (falta guardarConfig() para que persista).
+// mute(bool): holds/deletes the global mute (it respects beep()). Deja "mute" in the config
+// (you need to saveConfig() for it to persist).
 static int LSilenciar(lua_State* L) {
     bool m = lua_toboolean(L, 1) != 0;
     w3dEngine::ConfigSetMudo(m);
     w3dEngine::ConfigSetInt("mute", m ? 1 : 0);
     return 0;
 }
-// estaMudo() -> true si el sonido esta silenciado.
+// isMuted() -> true if the sound is muted.
 static int LEstaMudo(lua_State* L) { lua_pushboolean(L, w3dEngine::ConfigMudo()); return 1; }
 
 // ---- LOG para los juegos lua (info/aviso/error/depurar + la mini-consola) ---
@@ -461,8 +461,8 @@ static const char* LogTexto(lua_State* L) {
     const char* s = lua_tostring(L, 1);   // acepta string y number (lua convierte el number solo)
     return s ? s : "";
 }
-// info(msg) / aviso(msg): al log del Core con nivel INFO / WARN (los mismos
-// niveles que colorea el viewport Console del editor).
+// info(msg) / warning(msg): al Core log with INFO / WARN level (the same
+// levels that color the viewport Editor Console).
 static int LLogInfo(lua_State* L)  { w3dLog(LogTexto(L));  return 0; }
 static int LLogAviso(lua_State* L) { w3dLogW(LogTexto(L)); return 0; }
 // error(msg): nivel ERROR. OJO: PISA el error() de la stdlib de lua (el que
@@ -489,11 +489,11 @@ static int LEsDebug(lua_State* L) {
 #endif
     return 1;
 }
-// logCantidad() -> cuantas lineas guarda el ring buffer del log (0 en produccion).
+// logCantidad() -> how many lines are stored in the log buffer ring (0 in production).
 static int LLogCantidad(lua_State* L) { lua_pushinteger(L, w3dLogRingCount()); return 1; }
-// logLinea(i) -> texto, nivel de la linea i del ring (1-based: 1 = la mas VIEJA).
-// El nivel es "info" | "aviso" | "error" ("" si i esta fuera de rango o el ring
-// esta apagado). Con esto un juego dibuja su propia mini-consola (ver ui/consola).
+// logLinea(i) -> text, level of the line in the ring (1-based: 1 = there but VIEJA).
+// The level is "info" | "warning" | "error" ("" if this is out of range or the ring
+// is off). Here's a game to play on your own mini-console (see ui/console).
 static int LLogLinea(lua_State* L) {
     int i = (int)luaL_checkinteger(L, 1);
     const char* s = w3dLogRingLinea(i - 1);   // el ring es 0-based; fuera de rango da ""
@@ -525,8 +525,8 @@ static int LSetPos3(lua_State* L) {
     }
     return 0;
 }
-// girarHacia(o, dx, dz, factor): gira SUAVE al objeto hacia esa direccion del piso
-// (el slerp del quaternion vive aca: en lua seria un dolor)
+// rotate(o, dx, dz, factor): SMOOTHLY rotate the object in that direction of the floor
+// (the slerp of the quaternion lives here: on the moon it would be a pain)
 static int LGirarHacia(lua_State* L) {
     Object* o = W3dScriptParamObjeto(L, 1);
     if (!o) return 0;
@@ -541,15 +541,15 @@ static int LGirarHacia(lua_State* L) {
     Redibujar();
     return 0;
 }
-// animar(mesh, n [, frameInicial]): elige la vertex-animation que sigue (0 idle,
-// 1 correr, ... segun como se armaron las animaciones del modelo).
-//   CON DOS ARGUMENTOS el cambio queda PENDIENTE: el clip nuevo entra cuando el
-//   actual termina. Es lo que se quiere para encadenar (saludar -> idle).
-//   CON TRES el cambio es EN EL ACTO y arranca en ese cuadro. Es el EMPALME POR
-//   PIE de una locomocion: el juego que lo motivo pasa de caminar a correr saltando
-//   a cuadros concretos, para que el pie de apoyo no se teletransporte. Sin el
-//   tercer argumento eso no se podia expresar (habia que esperar al final del
-//   ciclo y el personaje "patinaba" en el cambio).
+// animar(mesh, n [, initialframe]): chooses the vertex-animation that follows (0 idle,
+// 1 run, ... according to how the model animations are set).
+// WITH ARGUMENTS the change falls PENDIENT: the new clip enters when it
+// current ends. That's what you want to chain (salute -> idle).
+// CON TRES the gearbox is IN THE ACTO and starts in this box. This is EMPALME BY
+// PIE of a locomotion: the game that goes from walking to running by jumping
+// to specific squares, so that the support pole does not teleport. Sin
+// third argument and it could not be expressed (you had to wait until the end of it
+// cycle and the personaje "skated" on the exchange).
 static int LAnimar(lua_State* L) {
     Object* o = W3dScriptParamObjeto(L, 1);
     int n = (int)luaL_checkinteger(L, 2);
@@ -570,29 +570,29 @@ static int LAnimar(lua_State* L) {
 }
 
 // ===========================================================================
-//  VERTICES POR SCRIPT (malla) — el caso que lo pidio fue una lamina de agua
-//  animada por frame: mover ALGUNOS
-//  vertices por frame (circulitos), tenirlos, y no tocar el resto.
+// VERTICES BY SCRIPT (malla) — in case the spike was a sheet of water
+// animated by frame: move SOME
+// vertices per frame (circuits), tenirlos, and do not touch the rest.
 //
-//  EL GRUPO nace del sidecar <modelo>.grupos.json (main/importers/import_wobj):
-//  un VertexGroup con indices en dominio CONTROL-POINT (la linea 'v' del OBJ).
-//  grupoVertices() lo traduce UNA VEZ a indices de RENDER via vertCtrlPoint
-//  (render -> control-point; el mismo mapa del skinning/weight paint) y el juego
-//  trabaja siempre con esos indices. Llamarla en inicio() y guardar la tabla.
+// THE GRUPO is born from the sidecar <model>.grupos.json (main/importers/import_wobj):
+// a VertexGroup with indices in the CONTROL-POINT domain (the 'v' line of the OBJ).
+// groupVertices() translates it ONCE to RENDER indices via vertCtrlPoint
+// (render -> control-point; the same skinning/weight paint map) and the game
+// always work with these indices. Call it at start() and save the table.
 //
-//  INDICES 1-BASED en lua (como dedo()): grupoVertices ya los devuelve asi y
-//  verticePos/setVerticePos/setVerticeColor/setVertices los reciben asi.
+// 1-BASED INDICES in lua (as finger()): groupVertices ya devuelve asi y
+// verticePos/setVerticePos/setVerticeColor/setVertices receive them asi.
 //
-//  EFICIENCIA: los setters escriben vertex[]/vertexColor[] EN EL LUGAR (sin
-//  allocs) y suben skinGeomVersion, el MISMO camino por el que la AnimacionUV
-//  hace que el VBO se re-suba solo (ver Mesh::TickUVAnimTira / SubirVBO). Para
-//  muchos vertices por frame esta setVertices() (tabla plana {i,x,y,z,...}):
-//  UN solo cruce lua<->C por frame.
+// EFFICIENCY: setters write vertex[]/vertexColor[] IN THE PLACE (sin
+// allocs) and suben skinGeomVersion, the same path as AnimacionUV
+// makes the VBO re-up solo (see Mesh::TickUVAnimTira / UpVBO). To
+// many vertices per frame are setVertices() (flat table {i,x,y,z,...}):
+// UN solo cruce lua<->C per frame.
 //
-//  OJO editor: esto mueve la malla EN VIVO (pensado para el Play / runtime);
-//  no re-ancla marcas sharp/seam ni pasa por undo (como el playback de una
-//  vertex anim). Guardar el proyecto con la malla "posada" por el script
-//  hornea esas posiciones.
+// OJO editor: I'm mueve la malla EN VIVO (designed for Play / runtime);
+// do not re-clip sharp/seam marks or go through undo (like the playback of a
+// vertex anim). Save the project with the bag "posed" by the script
+// adjust these positions.
 // ===========================================================================
 static Mesh* ComoMalla(lua_State* L, int idx) {
     Object* o = W3dScriptParamObjeto(L, idx);
@@ -965,7 +965,7 @@ static int LSetColor(lua_State* L) {
     PonerLuz(l, tono, e);
     return 0;
 }
-// energia(l) -> 0..1: el BRILLO de la luz (0 = apagada). 0 si el objeto no es una luz.
+// energy(l) -> 0..1: the BRILLO of the light (0 = off). 0 if the object is not a light.
 static int LEnergia(lua_State* L) {
     Light* l = ComoLuz(L, 1);
     lua_pushnumber(L, l ? BrilloDe(l) : 0.0);
@@ -1042,27 +1042,27 @@ static void AbrirLibs(lua_State* L) {
 }
 
 static void RegistrarAPI(lua_State* L) {
-    lua_pushcfunction(L, LTecla);  lua_setglobal(L, "tecla");
-    lua_pushcfunction(L, LTeclaApretada); lua_setglobal(L, "teclaApretada");
-    lua_pushcfunction(L, LBotonApretado); lua_setglobal(L, "botonApretado");
-    lua_pushcfunction(L, LAzar);   lua_setglobal(L, "azar");
-    lua_pushcfunction(L, LObjeto); lua_setglobal(L, "objeto");
-    lua_pushcfunction(L, LOpcion); lua_setglobal(L, "opcion");
-    lua_pushcfunction(L, LPropiedad); lua_setglobal(L, "propiedad");
+    lua_pushcfunction(L, LTecla);  lua_setglobal(L, "key");
+    lua_pushcfunction(L, LTeclaApretada); lua_setglobal(L, "keyPressed");
+    lua_pushcfunction(L, LBotonApretado); lua_setglobal(L, "buttonPressed");
+    lua_pushcfunction(L, LAzar);   lua_setglobal(L, "random");
+    lua_pushcfunction(L, LObjeto); lua_setglobal(L, "object");
+    lua_pushcfunction(L, LOpcion); lua_setglobal(L, "option");
+    lua_pushcfunction(L, LPropiedad); lua_setglobal(L, "property");
     // estado compartido entre scripts (el canal unico entre lua_States)
-    lua_pushcfunction(L, LCompartido);    lua_setglobal(L, "compartido");
-    lua_pushcfunction(L, LSetCompartido); lua_setglobal(L, "setCompartido");
+    lua_pushcfunction(L, LCompartido);    lua_setglobal(L, "shared");
+    lua_pushcfunction(L, LSetCompartido); lua_setglobal(L, "setShared");
     lua_pushcfunction(L, LStick);  lua_setglobal(L, "stick");
-    lua_pushcfunction(L, LToque);  lua_setglobal(L, "toque");
-    lua_pushcfunction(L, LDedo);   lua_setglobal(L, "dedo");
-    lua_pushcfunction(L, LRaton);  lua_setglobal(L, "raton");
+    lua_pushcfunction(L, LToque);  lua_setglobal(L, "touch");
+    lua_pushcfunction(L, LDedo);   lua_setglobal(L, "finger");
+    lua_pushcfunction(L, LRaton);  lua_setglobal(L, "mouse");
     lua_pushcfunction(L, LBeep);   lua_setglobal(L, "beep");
-    lua_pushcfunction(L, LBoton);  lua_setglobal(L, "boton");
+    lua_pushcfunction(L, LBoton);  lua_setglobal(L, "button");
     lua_pushcfunction(L, LPos3);   lua_setglobal(L, "pos3");
     lua_pushcfunction(L, LSetPos3);lua_setglobal(L, "setPos3");
-    lua_pushcfunction(L, LGirarHacia); lua_setglobal(L, "girarHacia");
-    lua_pushcfunction(L, LAnimar); lua_setglobal(L, "animar");
-    lua_pushcfunction(L, LInstanciar); lua_setglobal(L, "instanciar");
+    lua_pushcfunction(L, LGirarHacia); lua_setglobal(L, "rotateTowards");
+    lua_pushcfunction(L, LAnimar); lua_setglobal(L, "animator");
+    lua_pushcfunction(L, LInstanciar); lua_setglobal(L, "instantiate");
     // vertices por grupo (sidecar .grupos.json; ver el bloque VERTICES POR SCRIPT)
     lua_pushcfunction(L, LGrupoVertices);   lua_setglobal(L, "grupoVertices");
     lua_pushcfunction(L, LVerticePos);      lua_setglobal(L, "verticePos");
@@ -1071,44 +1071,44 @@ static void RegistrarAPI(lua_State* L) {
     lua_pushcfunction(L, LSetVertices);     lua_setglobal(L, "setVertices");
     // ---- API DE OBJETOS (cualquier tipo: mesh, luz, camara, vacio, ui, texto...) ----
     // identidad
-    lua_pushcfunction(L, LTipo);        lua_setglobal(L, "tipo");
-    lua_pushcfunction(L, LNombre);      lua_setglobal(L, "nombre");
+    lua_pushcfunction(L, LTipo);        lua_setglobal(L, "type");
+    lua_pushcfunction(L, LNombre);      lua_setglobal(L, "name");
     // posicion: setPosicion = teletransporte (absoluto) / mover = relativo por frame (con fisica)
-    lua_pushcfunction(L, LPosicion);    lua_setglobal(L, "posicion");
-    lua_pushcfunction(L, LSetPosicion); lua_setglobal(L, "setPosicion");
+    lua_pushcfunction(L, LPosicion);    lua_setglobal(L, "Position");
+    lua_pushcfunction(L, LSetPosicion); lua_setglobal(L, "SetPosition");
     lua_pushcfunction(L, LMover);       lua_setglobal(L, "mover");
     // rotacion en grados: setRotacion = absoluta / girar = relativa por frame
-    lua_pushcfunction(L, LRotacion);    lua_setglobal(L, "rotacion");
-    lua_pushcfunction(L, LSetRotacion); lua_setglobal(L, "setRotacion");
-    lua_pushcfunction(L, LGirar);       lua_setglobal(L, "girar");
+    lua_pushcfunction(L, LRotacion);    lua_setglobal(L, "rotation");
+    lua_pushcfunction(L, LSetRotacion); lua_setglobal(L, "setRotation");
+    lua_pushcfunction(L, LGirar);       lua_setglobal(L, "rotate");
     // escala: setEscala = absoluta / escalar = relativa. OJO: 'escala' lo vuelve a registrar
     // BindsJuego (main/) con la version que ademas atiende escala() sin argumentos.
-    lua_pushcfunction(L, LEscalaObj);   lua_setglobal(L, "escala");
-    lua_pushcfunction(L, LSetEscala);   lua_setglobal(L, "setEscala");
-    lua_pushcfunction(L, LEscalar);     lua_setglobal(L, "escalar");
+    lua_pushcfunction(L, LEscalaObj);   lua_setglobal(L, "scaleObject");
+    lua_pushcfunction(L, LSetEscala);   lua_setglobal(L, "setScale");
+    lua_pushcfunction(L, LEscalar);     lua_setglobal(L, "scale");
     // visibilidad (mostrar() de BindsJuego es el alias historico de setVisible)
     lua_pushcfunction(L, LVisible);     lua_setglobal(L, "visible");
     lua_pushcfunction(L, LSetVisible);  lua_setglobal(L, "setVisible");
     // luz
     lua_pushcfunction(L, LColor);       lua_setglobal(L, "color");
     lua_pushcfunction(L, LSetColor);    lua_setglobal(L, "setColor");
-    lua_pushcfunction(L, LEnergia);     lua_setglobal(L, "energia");
-    lua_pushcfunction(L, LSetEnergia);  lua_setglobal(L, "setEnergia");
+    lua_pushcfunction(L, LEnergia);     lua_setglobal(L, "energy");
+    lua_pushcfunction(L, LSetEnergia);  lua_setglobal(L, "setEnergy");
     // config persistente (idioma, mute, ...) + mute global
     lua_pushcfunction(L, LConfig);        lua_setglobal(L, "config");
     lua_pushcfunction(L, LSetConfig);     lua_setglobal(L, "setConfig");
-    lua_pushcfunction(L, LGuardarConfig); lua_setglobal(L, "guardarConfig");
-    lua_pushcfunction(L, LCargarConfig);  lua_setglobal(L, "cargarConfig");
-    lua_pushcfunction(L, LSilenciar);     lua_setglobal(L, "silenciar");
-    lua_pushcfunction(L, LEstaMudo);      lua_setglobal(L, "estaMudo");
+    lua_pushcfunction(L, LGuardarConfig); lua_setglobal(L, "saveConfig");
+    lua_pushcfunction(L, LCargarConfig);  lua_setglobal(L, "loadConfig");
+    lua_pushcfunction(L, LSilenciar);     lua_setglobal(L, "silence");
+    lua_pushcfunction(L, LEstaMudo);      lua_setglobal(L, "isMuted");
     // log del Core (los niveles del viewport Console) + la mini-consola por script
     lua_pushcfunction(L, LLogInfo);     lua_setglobal(L, "info");
-    lua_pushcfunction(L, LLogAviso);    lua_setglobal(L, "aviso");
+    lua_pushcfunction(L, LLogAviso);    lua_setglobal(L, "logInfo");
     lua_pushcfunction(L, LLogError);    lua_setglobal(L, "error");   // pisa el error() de lua (ver arriba)
-    lua_pushcfunction(L, LLogDepurar);  lua_setglobal(L, "depurar");
+    lua_pushcfunction(L, LLogDepurar);  lua_setglobal(L, "debug");
     lua_pushcfunction(L, LEsDebug);     lua_setglobal(L, "esDebug");
-    lua_pushcfunction(L, LLogCantidad); lua_setglobal(L, "logCantidad");
-    lua_pushcfunction(L, LLogLinea);    lua_setglobal(L, "logLinea");
+    lua_pushcfunction(L, LLogCantidad); lua_setglobal(L, "logQuantity");
+    lua_pushcfunction(L, LLogLinea);    lua_setglobal(L, "logLine");
     // FISICA minima del Core (velocidad/acelerar/caja/rebotar/rebotarEn/rebotarDentro): el motor
     // integra y rebota, el lua no calcula posiciones a mano. Ver physics/W3dFisica.h.
     W3dFisicaRegistrarBinds((void*)L);
@@ -1221,7 +1221,7 @@ bool W3dScriptInicio(Object* duenio) {
     if (it == gInstancias.end()) return false;
     bool ok = false;
     for (size_t i = 0; i < it->second.size(); i++)
-        if (it->second[i] && Llamar(it->second[i], "inicio", false, 0.0f)) ok = true;
+        if (it->second[i] && Llamar(it->second[i], "start", false, 0.0f)) ok = true;
     return ok;
 }
 
@@ -1230,11 +1230,11 @@ bool W3dScriptActualizar(Object* duenio, float dt) {
     if (it == gInstancias.end()) return false;
     bool ok = false;
     for (size_t i = 0; i < it->second.size(); i++)
-        if (it->second[i] && Llamar(it->second[i], "actualizar", true, dt)) ok = true;
-    // SNAPSHOT para el flanco de teclaApretada()/botonApretado(): se toma DESPUES de correr TODOS los
-    // scripts de este frame, asi todas sus llamadas vieron el mismo estado previo. Mismo criterio y mismo
-    // punto que el gPunPrev de apretado() en el runtime (W3dGameActualizar corre este actualizar una vez
-    // por frame para el unico duenio del juego). El proximo frame comparara contra este snapshot.
+        if (it->second[i] && Llamar(it->second[i], "update", true, dt)) ok = true;
+// SNAPSHOT to the edge of the keyApretada()/botonApretado(): it takes AFTER running ALL of them 
+// scripts of this frame, so all your calls come in the same previous state. Same criteria and same 
+// point that gPunPrev depretado() in the runtime (W3dGameActualizar runs this update once 
+// per frame for the only duen of the game). The next frame will compare against this snapshot.
     gTeclasPrev = gTeclas;
     gBotonesPadPrev = gBotonesPad;
     return ok;
@@ -1289,7 +1289,7 @@ bool W3dScriptLeerPropiedades(const std::string& ruta, std::vector<W3dScriptProp
     RegistrarAPI(L);   // el script puede llamar a la API en su cuerpo: que no reviente
     bool ok = CorrerArchivo(L, ruta);
     if (ok && props) {
-        lua_getglobal(L, "propiedades");
+        lua_getglobal(L, "properties");
         if (lua_istable(L, -1)) {
             lua_pushnil(L);
             while (lua_next(L, -2) != 0) {
@@ -1321,10 +1321,10 @@ bool W3dScriptLeerPropiedades(const std::string& ruta, std::vector<W3dScriptProp
                         p.tipo = 2; p.subtipo = 1;
                         p.defecto = lua_toboolean(L, -1) ? "true" : "false";
                     } else if (tv == LUA_TSTRING) {
-                        // "objeto" es LA convencion historica de referencia; cualquier
+                        // "object" es LA convencion historica de referencia; cualquier
                         // otro string es un default de TEXTO editable (etiqueta...)
                         const char* s = lua_tostring(L, -1);
-                        if (strcmp(s, "objeto") != 0) { p.tipo = 2; p.subtipo = 2; p.defecto = s; }
+                        if (strcmp(s, "object") != 0) { p.tipo = 2; p.subtipo = 2; p.defecto = s; }
                     }
                     props->push_back(p);
                 }

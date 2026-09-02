@@ -1,16 +1,16 @@
 #ifndef W3D_INTERACTIONSTATE_H
 #define W3D_INTERACTIONSTATE_H
 
-// Estado de INTERACCION de la app, COMPARTIDO motor<->editor y por eso vive en el MOTOR.
-// Antes estas dos globales + sus enums colgaban de variables.h (header del EDITOR), y el
-// traversal del Core incluia ese header -> invertia la capa (Motor <- UI <- Editor). Ahora
-// el motor las declara y define; el editor las ESCRIBE segun el input, el Core las LEE
-// (seleccion, gizmos). Dialecto C++03 (compila con RVCT en Symbian).
+// Status of INTERACTION of the app, SHARED engine<->editor and therefore lives on the MOTOR.
+// Before these globals + their enums colgaban de variables.h (header of the EDITOR), and el
+// Core traversal included this header -> inverted the cover (Engine <- UI <- Editor). Now
+// the engine declares and defines; the editor will WRITE according to the input, the Core will LEE
+// (selection, gizmos). C++03 dialect (compiles with RVCT on Symbian).
 
-// modos del viewport (selector estilo Blender; solo con una MALLA activa). Edit y los Paint
-// todavia no estan implementados: por ahora el selector solo cambia InteractionMode.
+// viewport modes (Blender style selector; only with an active MALLA). Edit your Paint
+// however it is not implemented: for now the selector only changes InteractionMode.
 enum { ObjectMode, EditMode, VertexPaint, WeightPaint, TexturePaint, PoseMode };
-// sub-estado del viewport: navegando, o en medio de un transform (G/R/S/extrude...).
+// viewport sub-state: navigating, using a transform (G/R/S/extrude...).
 enum { editNavegacion, EdgeMove, FaceMove, timelineMove, rotacion, EditScale, translacion };
 
 extern int InteractionMode; // uno de ObjectMode/EditMode/...
