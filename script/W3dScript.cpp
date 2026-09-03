@@ -1216,12 +1216,22 @@ static bool Llamar(W3dScriptInst* inst, const char* fn, bool conDt, float dt) {
     return true;
 }
 
+// The public Lua API uses English names; keep the former Spanish callbacks
+// working for scripts created before the API was renamed.
+static bool LlamarCiclo(W3dScriptInst* inst, const char* nombre, const char* alias,
+                        bool conDt, float dt) {
+    lua_getglobal(inst->L, nombre);
+    bool existe = lua_isfunction(inst->L, -1);
+    lua_pop(inst->L, 1);
+    return Llamar(inst, existe ? nombre : alias, conDt, dt);
+}
+
 bool W3dScriptInicio(Object* duenio) {
     std::map<Object*, std::vector<W3dScriptInst*> >::iterator it = gInstancias.find(duenio);
     if (it == gInstancias.end()) return false;
     bool ok = false;
     for (size_t i = 0; i < it->second.size(); i++)
-        if (it->second[i] && Llamar(it->second[i], "start", false, 0.0f)) ok = true;
+        if (it->second[i] && LlamarCiclo(it->second[i], "start", "inicio", false, 0.0f)) ok = true;
     return ok;
 }
 
@@ -1230,7 +1240,7 @@ bool W3dScriptActualizar(Object* duenio, float dt) {
     if (it == gInstancias.end()) return false;
     bool ok = false;
     for (size_t i = 0; i < it->second.size(); i++)
-        if (it->second[i] && Llamar(it->second[i], "update", true, dt)) ok = true;
+        if (it->second[i] && LlamarCiclo(it->second[i], "update", "actualizar", true, dt)) ok = true;
 // SNAPSHOT to the edge of the keyApretada()/botonApretado(): it takes AFTER running ALL of them 
 // scripts of this frame, so all your calls come in the same previous state. Same criteria and same 
 // point that gPunPrev depretado() in the runtime (W3dGameActualizar runs this update once 

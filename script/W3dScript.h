@@ -22,8 +22,9 @@ class Object;
 //        agarrada   = false,                             -- valor bool
 //        etiqueta   = "x",                               -- valor de texto
 //      }
-//      function inicio() ... end            -- una vez, al dar PLAY
-//      function actualizar(dt) ... end      -- cada frame (dt en segundos)
+//      function start() ... end             -- una vez, al dar PLAY
+//      function update(dt) ... end          -- cada frame (dt en segundos)
+//      -- inicio()/actualizar(dt) tambien se aceptan por compatibilidad
 //
 //  El .lua lee lo configurado con objeto("pelota"), opcion("dificultad") y
 //  propiedad("frame") (si la instancia no configuro nada, propiedad() devuelve
@@ -84,8 +85,8 @@ void W3dScriptResolverOpcion(Object* duenio, int idx, const std::string& prop, c
 // asigna un VALOR configurado por instancia (tipo 2); el .lua lo lee con
 // propiedad("x") (numero/bool/string segun el default declarado en el script)
 void W3dScriptResolverValor(Object* duenio, int idx, const std::string& prop, const std::string& valor);
-bool W3dScriptInicio(Object* duenio);              // llama inicio() de cada script
-bool W3dScriptActualizar(Object* duenio, float dt);// llama actualizar(dt) de cada uno
+bool W3dScriptInicio(Object* duenio);              // llama start() de cada script
+bool W3dScriptActualizar(Object* duenio, float dt);// llama update(dt) de cada uno
 void W3dScriptDescargarTodo();                     // STOP: mata todas las instancias
 void W3dScriptDescargarDe(Object* duenio);         // solo las de ESTE objeto (edicion en vivo)
 
