@@ -49,6 +49,7 @@ const char* w3dLogRingLinea(int i) {
     int inicio = (gRingCabeza - gRingCant + W3D_LOG_RING_MAX * 2) % W3D_LOG_RING_MAX;
     return gRing[(inicio + i) % W3D_LOG_RING_MAX];
 }
+void w3dLogRingClear() { gRingCabeza = 0; gRingCant = 0; }
 
 #ifdef W3D_SYMBIAN
 // ---------------------------------------------------------------------------
