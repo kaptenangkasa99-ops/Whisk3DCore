@@ -26,9 +26,10 @@ class Object;
 //      function update(dt) ... end          -- cada frame (dt en segundos)
 //      -- inicio()/actualizar(dt) tambien se aceptan por compatibilidad
 //
-//  El .lua lee lo configurado con objeto("pelota"), opcion("dificultad") y
-//  propiedad("frame") (si la instancia no configuro nada, propiedad() devuelve
-//  el default declarado en la tabla).
+//  El .lua lee lo configurado con object("pelota"), option("dificultad") y
+//  property("frame") (si la instancia no configuro nada, property() devuelve
+//  el default declarado en la tabla). object() tambien busca por nombre en la
+//  escena del script; object("Self") devuelve el objeto que tiene el script.
 //
 //  Cada instancia corre en su PROPIO lua_State (aislada). El orden de
 //  ejecucion es el del arbol de la escena (como se dibuja / outliner).

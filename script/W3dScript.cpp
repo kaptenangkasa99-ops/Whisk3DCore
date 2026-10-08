@@ -246,7 +246,17 @@ static int LInstanciar(lua_State* L) {
     return 1;
 }
 
-// objeto("prop") -> la referencia expuesta (light userdata; nil si no se asigno)
+static Object* BuscarObjetoEnArbol(Object* raiz, const char* nombre) {
+    if (!raiz) return NULL;
+    if (raiz->name == nombre) return raiz;
+    for (size_t i = 0; i < raiz->Childrens.size(); i++) {
+        Object* encontrado = BuscarObjetoEnArbol(raiz->Childrens[i], nombre);
+        if (encontrado) return encontrado;
+    }
+    return NULL;
+}
+
+// objeto("Nombre") -> busca en las refs del script y luego por nombre en su escena.
 static int LObjeto(lua_State* L) {
     const char* n = luaL_checkstring(L, 1);
     lua_getfield(L, LUA_REGISTRYINDEX, "w3d_inst");
@@ -257,6 +267,25 @@ static int LObjeto(lua_State* L) {
         if (it != inst->refs.end() && it->second) {
             lua_pushlightuserdata(L, it->second);
             return 1;
+        }
+        if (strcmp(n, "Self") == 0) {
+            lua_pushlightuserdata(L, inst->duenio);
+            return 1;
+        }
+        if (inst->duenio) {
+            Object* raiz = NULL;
+            for (Object* p = inst->duenio; p; p = p->Parent) {
+                if (p->getType() == ObjectType::ui) {
+                    raiz = p;
+                    break;
+                }
+                raiz = p;
+            }
+            Object* encontrado = BuscarObjetoEnArbol(raiz, n);
+            if (encontrado) {
+                lua_pushlightuserdata(L, encontrado);
+                return 1;
+            }
         }
     }
     lua_pushnil(L);
