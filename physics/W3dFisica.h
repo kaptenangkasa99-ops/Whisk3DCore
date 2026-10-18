@@ -41,12 +41,12 @@
 //  moves freely (paddles, balls: direct children of the root, center anchor, free layout),
 //  not for anchored/flex widgets.
 //  OTHER operands follow the RAW-vs-RESOLVED rule (the same as chocan in BindsJuego):
-//    * OBSTACLE in rebotar(obj, otro): if its raw pos is authoritative (determined
+//    * OBSTACLE in bounce(obj, otro): if its raw pos is authoritative (determined
 //      by the 'raw' adapter below: free layout + center anchor), the RAW box of
 //      THIS frame is used (a paddle moved by the script in this frame hits where it
 //      is NOW, without lag); if placed by layout, the RESOLVED rect from the last
 //      render is used (where it is actually drawn).
-//    * AREA (the court in rebotarEn(obj, area)): ALWAYS the layout rect (the same
+//    * AREA (the court in bounceWithin(obj, area)): ALWAYS the layout rect (the same
 //      one returned by cajaUI). An area is precisely a widget positioned by layout,
 //      so the game doesn't need to recalculate borders: layout lives in .w3dui.
 //      (An area is not moved via script: no lag is possible.)
@@ -56,7 +56,7 @@
 //      one compared by chocan(). Zero configuration required.
 //    * 3D: Defaults to a cube with side 2*RadioFoco() (mesh bounding) centered
 //      on the object. It's an approximation: if insufficient, the game sets the
-//      exact box using caja(obj, width, height, depth).
+//      exact box using collisionBox(obj, width, height, depth).
 //
 //  Data LIFETIME: Object velocity/box data lives in a small list (one slot per
 //  moving object). Everything is cleared in W3dFisicaLimpiar(), which calls
@@ -64,7 +64,7 @@
 //  the list empty. Nothing is stored inside Object.
 //  A SCENE CHANGE does not clear it (there may be bodies that don't belong to any
 //  scene): if a scene leaves something moving, the script must stop it upon exit
-//  using velocidad(obj, 0, 0) or reset it in its inicio().
+//  using velocity(obj, 0, 0) or reset it in its inicio().
 // ============================================================================
 class Object;
 

@@ -97,7 +97,7 @@ static void Lienzo(float* w, float* h) {
 // CENTRO del objeto en su espacio (c[0..2]) + MEDIAS extensiones de su caja (h[0..2]).
 // 2D: centro en px de lienzo y caja = el rect del elemento (lo mismo que compara chocan()).
 // 3D: centro = pos local y caja = cubo de RadioFoco() (bounding de la malla). En los dos
-// casos, caja(obj, w, h, d) desde lua pisa el default.
+// casos, collisionBox(obj, w, h, d) desde lua pisa el default.
 static bool CajaDe(Object* o, float* c, float* h) {
     if (!o) return false;
     bool dosd = Es2D(o);
@@ -140,15 +140,15 @@ static bool CajaArea(Object* o, float* c, float* h) {
     }
     return CajaDe(o, c, h);
 }
-// Caja del OBSTACULO de rebotar(obj, otro): la regla CRUDO-vs-RESUELTO (la
+// Caja del OBSTACULO de bounce(obj, otro): la regla CRUDO-vs-RESUELTO (la
 // misma de chocan, ver la cabecera). Si la pos cruda del otro es AUTORITATIVA
 // (adaptador 'cruda': hijo directo de la raiz, layout libre, ancla centro) se
 // usa la caja normal CRUDA de este frame -> la pala que el script movio ESTE
 // frame pega donde esta ahora, sin lag (el pong). Si lo acomoda el layout
 // (flex / ancla a borde) la cruda es basura: se usa el rect RESUELTO del
-// ultimo render (donde se dibuja). Con caja(obj, ...) fijada a mano, el tamano
+// ultimo render (donde se dibuja). Con collisionBox(obj, ...) fijada a mano, el tamano
 // propio pisa al resuelto (el centro sigue siendo el resuelto: el layout pone
-// el centro, caja() solo el tamano). Sin adaptador 'cruda' todo es crudo (el
+// el centro, collisionBox() solo el tamano). Sin adaptador 'cruda' todo es crudo (el
 // comportamiento historico).
 static bool CajaObstaculo(Object* o, float* c, float* h) {
     if (!o) return false;
@@ -329,12 +329,12 @@ static bool ReboteEnArea(W3dCuerpo* c, Object* area, const char* lados) {
 //  ceros y los setters/rebotes no hacen nada (devuelven false).
 // ===========================================================================
 
-// velocidad(obj) -> vx, vy, vz   (0,0,0 si el objeto no tiene velocidad)
-// velocidad(obj, vx, vy [, vz])  -> la fija y deja al objeto EN MANOS DEL MOTOR:
+// velocity(obj) -> vx, vy, vz   (0,0,0 si el objeto no tiene velocidad)
+// velocity(obj, vx, vy [, vz])  -> la fija y deja al objeto EN MANOS DEL MOTOR:
 //   desde ese momento el paso de fisica lo mueve solo cada frame (pos += vel*dt).
 //   Unidades: px de lienzo por segundo en 2D (mismo espacio que posPx), unidades
 //   del motor por segundo en 3D. Ejes 2D: +x derecha, +y ABAJO.
-//   velocidad(obj, 0, 0) lo deja quieto (sigue siendo un cuerpo, no cuesta nada).
+//   velocity(obj, 0, 0) lo deja quieto (sigue siendo un cuerpo, no cuesta nada).
 static int LVelocidad(lua_State* L) {
     Object* o = W3dScriptParamObjeto(L, 1);
     if (lua_gettop(L) <= 1) {
@@ -350,10 +350,10 @@ static int LVelocidad(lua_State* L) {
     return 0;
 }
 
-// acelerar(obj, factor [, tope]) -> rapidez resultante.
+// accelerate(obj, factor [, tope]) -> rapidez resultante.
 //   Multiplica la velocidad por 'factor' conservando la direccion. Con 'tope'
 //   (>0) la rapidez no pasa de ese valor. El clasico "5% mas rapido por golpe,
-//   con techo" del pong es UNA linea: acelerar(pelota, 1.05, VEL_MAX).
+//   con techo" del pong es UNA linea: accelerate(pelota, 1.05, VEL_MAX).
 static int LAcelerar(lua_State* L) {
     Object* o = W3dScriptParamObjeto(L, 1);
     W3dCuerpo* c = Buscar(o);
@@ -371,8 +371,8 @@ static int LAcelerar(lua_State* L) {
     return 1;
 }
 
-// caja(obj) -> ancho, alto, profundo: la caja de colision que se esta usando.
-// caja(obj, ancho, alto [, profundo]): la fija a mano (px de lienzo en 2D,
+// collisionBox(obj) -> ancho, alto, profundo: la caja de colision que se esta usando.
+// collisionBox(obj, ancho, alto [, profundo]): la fija a mano (px de lienzo en 2D,
 //   unidades del motor en 3D). Sirve para afinar (una pelota con caja mas chica
 //   que su dibujo) y es la forma de darle caja a un objeto 3D que no es malla.
 static int LCaja(lua_State* L) {
@@ -393,12 +393,12 @@ static int LCaja(lua_State* L) {
     return 0;
 }
 
-// rebotar(obj, otro [, otro2, ...]) -> bool
+// bounce(obj, otro [, otro2, ...]) -> bool
 //   Si la caja de 'obj' se solapa con la de alguno de los otros, el MOTOR lo
 //   despega y le invierte la velocidad del eje por el que choco. Devuelve true
 //   si hubo rebote (para el beep del lua). Cada "otro" puede ser un objeto o una
-//   TABLA de objetos: rebotar(pelota, paredes) con paredes = { a, b, c }.
-//   'obj' tiene que tener velocidad (velocidad(obj, ...)): sin cuerpo no rebota.
+//   TABLA de objetos: bounce(pelota, paredes) con paredes = { a, b, c }.
+//   'obj' tiene que tener velocidad (velocity(obj, ...)): sin cuerpo no rebota.
 static int LRebotar(lua_State* L) {
     Object* a = W3dScriptParamObjeto(L, 1);
     W3dCuerpo* ca = Buscar(a);
@@ -423,7 +423,7 @@ static int LRebotar(lua_State* L) {
     return 1;
 }
 
-// rebotarEn(obj, area [, "lados"]) -> bool          <- la forma RECOMENDADA
+// bounceWithin(obj, area [, "lados"]) -> bool          <- la forma RECOMENDADA
 //   Mantiene al objeto DENTRO de la caja de OTRO objeto ('area': la cancha, un
 //   contenedor de la UI, una habitacion 3D). La caja del area sale del LAYOUT (el
 //   mismo rect que da cajaUI), asi que el juego NO calcula ningun borde: donde
@@ -434,10 +434,10 @@ static int LRebotar(lua_State* L) {
 //       y:  "arriba" ("techo")    "abajo" ("piso")     <- +y va hacia ABAJO
 //       z:  "frente" ("adelante") "fondo" ("atras")    <- solo en 3D
 //       "todos" = las 4/6 cerradas (lo mismo que no pasar el argumento)
-//   El pong es una linea: rebotarEn(pelota, cancha, "arriba abajo") -> rebota en
+//   El pong es una linea: bounceWithin(pelota, cancha, "arriba abajo") -> rebota en
 //   el techo y en el piso, y por los costados se va (eso es justamente el punto).
 //
-// rebotarEn(obj, x0, y0, x1, y1 [, z0, z1]) -> bool  <- la forma con NUMEROS
+// bounceWithin(obj, x0, y0, x1, y1 [, z0, z1]) -> bool  <- la forma con NUMEROS
 //   Igual pero el rect/caja se da a mano. (x0,y0) es la esquina de valores
 //   MENORES: en 2D eso es izquierda y ARRIBA. Cualquier lado puede ser nil = ese
 //   lado esta ABIERTO. Solo hace falta si el area no es un objeto de la escena.
@@ -465,9 +465,9 @@ static int LRebotarEn(lua_State* L) {
     return 1;
 }
 
-// rebotarDentro(obj, area) -> bool
+// bounceInside(obj, area) -> bool
 //   El objeto queda ENCERRADO en la caja del area (las 4/6 paredes cerradas).
-//   Es exactamente rebotarEn(obj, area) sin lista de lados; se mantiene el nombre
+//   Es exactamente bounceWithin(obj, area) sin lista de lados; se mantiene el nombre
 //   porque se lee muy bien cuando no hay ningun lado abierto.
 static int LRebotarDentro(lua_State* L) {
     W3dCuerpo* c = Buscar(W3dScriptParamObjeto(L, 1));
@@ -477,10 +477,10 @@ static int LRebotarDentro(lua_State* L) {
 
 void W3dFisicaRegistrarBinds(void* Lv) {
     lua_State* L = (lua_State*)Lv;
-    lua_pushcfunction(L, LVelocidad);     lua_setglobal(L, "velocidad");
-    lua_pushcfunction(L, LAcelerar);      lua_setglobal(L, "acelerar");
-    lua_pushcfunction(L, LCaja);          lua_setglobal(L, "caja");
-    lua_pushcfunction(L, LRebotar);       lua_setglobal(L, "rebotar");
-    lua_pushcfunction(L, LRebotarEn);     lua_setglobal(L, "rebotarEn");
-    lua_pushcfunction(L, LRebotarDentro); lua_setglobal(L, "rebotarDentro");
+    lua_pushcfunction(L, LVelocidad);     lua_setglobal(L, "velocity");
+    lua_pushcfunction(L, LAcelerar);      lua_setglobal(L, "accelerate");
+    lua_pushcfunction(L, LCaja);          lua_setglobal(L, "collisionBox");
+    lua_pushcfunction(L, LRebotar);       lua_setglobal(L, "bounce");
+    lua_pushcfunction(L, LRebotarEn);     lua_setglobal(L, "bounceWithin");
+    lua_pushcfunction(L, LRebotarDentro); lua_setglobal(L, "bounceInside");
 }

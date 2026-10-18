@@ -30,7 +30,7 @@ extern "C" {
 //  BUILD SIN FISICA (-DW3D_SIN_FISICA): physics/W3dFisica.cpp NO se compila.
 //  Aca se implementa TODA la API de physics/W3dFisica.h como stubs no-op C++03:
 //  los getters devuelven 0/false, los setters no hacen nada, y los binds lua
-//  (velocidad/acelerar/caja/rebotar/rebotarEn/rebotarDentro) se registran igual
+//  (velocity/accelerate/collisionBox/bounce/bounceWithin/bounceInside) se registran igual
 //  pero vacios -> un script que los llame NO crashea, solo avisa UNA vez por log.
 //  Los callers (w3drun, SimJuego, BindsJuego) no cambian: linkean contra esto.
 //  OJO: con esta macro definida NO compilar W3dFisica.cpp (simbolo duplicado).
@@ -53,30 +53,30 @@ void W3dFisicaSetVel(Object*, float, float, float) { FisicaAvisoOff(); }
 void W3dFisicaSetAdaptador2D(W3dFisicaLienzoFn, W3dFisicaTam2DFn, W3dFisicaCajaUIFn,
                              W3dFisicaCrudaFn) {}
 // ---- binds lua stub: misma ARIDAD de retorno que los reales ----------------
-// velocidad(obj) -> 0,0,0 ; velocidad(obj, vx, vy) -> nada
+// velocity(obj) -> 0,0,0 ; velocity(obj, vx, vy) -> nada
 static int LFisicaStubVelocidad(lua_State* L) {
     FisicaAvisoOff();
     if (lua_gettop(L) <= 1) { lua_pushnumber(L, 0); lua_pushnumber(L, 0); lua_pushnumber(L, 0); return 3; }
     return 0;
 }
-// acelerar(obj, factor) -> rapidez resultante (0 sin fisica)
+// accelerate(obj, factor) -> rapidez resultante (0 sin fisica)
 static int LFisicaStubAcelerar(lua_State* L) { FisicaAvisoOff(); lua_pushnumber(L, 0); return 1; }
-// caja(obj) -> 0,0,0 ; caja(obj, w, h) -> nada
+// collisionBox(obj) -> 0,0,0 ; collisionBox(obj, w, h) -> nada
 static int LFisicaStubCaja(lua_State* L) {
     FisicaAvisoOff();
     if (lua_gettop(L) <= 1) { lua_pushnumber(L, 0); lua_pushnumber(L, 0); lua_pushnumber(L, 0); return 3; }
     return 0;
 }
-// rebotar/rebotarEn/rebotarDentro -> false (nunca hay rebote)
+// bounce/bounceWithin/bounceInside -> false (nunca hay rebote)
 static int LFisicaStubRebote(lua_State* L) { FisicaAvisoOff(); lua_pushboolean(L, 0); return 1; }
 void W3dFisicaRegistrarBinds(void* Lv) {
     lua_State* L = (lua_State*)Lv;
-    lua_pushcfunction(L, LFisicaStubVelocidad); lua_setglobal(L, "velocidad");
-    lua_pushcfunction(L, LFisicaStubAcelerar);  lua_setglobal(L, "acelerar");
-    lua_pushcfunction(L, LFisicaStubCaja);      lua_setglobal(L, "caja");
-    lua_pushcfunction(L, LFisicaStubRebote);    lua_setglobal(L, "rebotar");
-    lua_pushcfunction(L, LFisicaStubRebote);    lua_setglobal(L, "rebotarEn");
-    lua_pushcfunction(L, LFisicaStubRebote);    lua_setglobal(L, "rebotarDentro");
+    lua_pushcfunction(L, LFisicaStubVelocidad); lua_setglobal(L, "velocity");
+    lua_pushcfunction(L, LFisicaStubAcelerar);  lua_setglobal(L, "accelerate");
+    lua_pushcfunction(L, LFisicaStubCaja);      lua_setglobal(L, "collisionBox");
+    lua_pushcfunction(L, LFisicaStubRebote);    lua_setglobal(L, "bounce");
+    lua_pushcfunction(L, LFisicaStubRebote);    lua_setglobal(L, "bounceWithin");
+    lua_pushcfunction(L, LFisicaStubRebote);    lua_setglobal(L, "bounceInside");
 }
 #endif // W3D_SIN_FISICA
 
@@ -1138,7 +1138,7 @@ static void RegistrarAPI(lua_State* L) {
     lua_pushcfunction(L, LEsDebug);     lua_setglobal(L, "esDebug");
     lua_pushcfunction(L, LLogCantidad); lua_setglobal(L, "logQuantity");
     lua_pushcfunction(L, LLogLinea);    lua_setglobal(L, "logLine");
-    // FISICA minima del Core (velocidad/acelerar/caja/rebotar/rebotarEn/rebotarDentro): el motor
+    // FISICA minima del Core (velocity/accelerate/collisionBox/bounce/bounceWithin/bounceInside): el motor
     // integra y rebota, el lua no calcula posiciones a mano. Ver physics/W3dFisica.h.
     W3dFisicaRegistrarBinds((void*)L);
     if (gBindExtra) gBindExtra((void*)L);   // la API 2D del editor / plataforma
