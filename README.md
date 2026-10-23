@@ -1,61 +1,62 @@
 # Whisk3D Core
 
 <p align="center">
-    <img src="logo_outlined.svg" width="400" alt="Whisk3D logo">
+    <img src="logo_outlined.svg" width="400" alt="Whisk3D logo">
 </p>
 
-## Motor multiplataforma 2D y 3D estilo retro
+## Retro-style 2D and 3D Cross-Platform Engine
 
-Whisk3D Core es un motor 3D multiplataforma. Es una biblioteca escrita en C++ para crear juegos y aplicaciones 2D/3D livianas que funcionan tanto en sistemas modernos como retro. Proporciona una API gráfica unificada que abstrae las diferencias entre las distintas APIs de renderizado y sistemas operativos, permitiendo desarrollar una vez y ejecutar en Windows, Linux, Android, Symbian y navegadores web (pueden sumarse mas sistemas en el futuro).
+Whisk3D Core is a cross-platform 3D engine. It is a library written in C++ for creating lightweight 2D/3D games and applications that run on both modern and retro systems. It provides a unified graphics API that abstracts the differences between various rendering APIs and operating systems, allowing you to write once and run on Windows, Linux, Android, Symbian, and web browsers (more systems may be added in the future).
 
-Su diseño prioriza la simplicidad, el rendimiento y la portabilidad, inspirándose en motores clásicos como RenderWare y siendo ideal para proyectos con estética retro o de bajos requisitos.
+Its design prioritizes simplicity, performance, and portability, taking inspiration from classic engines like RenderWare and making it ideal for low-spec projects or those with a retro aesthetic.
 
-**NOTA:** El proyecto aun no esta listo para usar en produccion. se siguen haciendo cambios y reescrituras!. cualquier duda, pueden consultar en el grupo de [Telegram](https://t.me/Whisk3D)
-Actualmente sigo limpiando el Core para:
-* Simplificar el codigo... tiene mucha logica aun del Whisk3D Editor (modo edicion, modo objeto, modes de render, Mesh Editor, Modificadores. todo eso NO va en el Core)
-* Pulir las animaciones
-* Agregar un sistema de esqueletos
-* Agregar algun sistema estilo BSP para mapas u otro sistema para mundos abiertos
-* Algun sistema de fisicas... aunque eso capaz podria ser algo opcional al igual que los bsp
-* Soportar otros sistemas y backend graficos retros.
-* Agregar ejemplos y documentacion (los ejemplos se iran subiendo al repositorio [Whisk3D-Examples](https://github.com/Dante-Leoncini/Whisk3D-Examples))
+**NOTE:** The project is not yet production-ready. Changes and rewrites are still actively ongoing! If you have any questions, feel free to ask in the [Telegram](https://t.me/Whisk3D) group.
 
-## Capacidades actuales
+Currently, I am continuing to clean up the Core to:
+- Simplify the code... it still contains a lot of logic from Whisk3D Editor (edit mode, object mode, render modes, Mesh Editor, Modifiers—all of that does NOT belong in the Core)
+- Polish animations
+- Add a skeletal animation system
+- Add a BSP-style system for maps or another system for open worlds
+- A physics system... though that might be optional, similar to BSP
+- Support other retro platforms and graphics backends
+- Add examples and documentation (examples will be continuously uploaded to the [Whisk3D-Examples](https://github.com/Dante-Leoncini/Whisk3D-Examples) repository)
 
-Lo que el Core ya hace hoy:
+## Current Capabilities
 
-* **Sistemas soportados:** Windows, Linux, Android, Symbian y navegadores web (WebGL). El mismo codigo base corre en todos; cada plataforma solo aporta su arranque de ventana/contexto.
-* **Backends graficos:** un backend de *pipeline fijo* (OpenGL de escritorio y OpenGL ES 1.1 para Android/Symbian) y un backend de *shaders* (OpenGL ES 2.0 / WebGL). Se elige en tiempo de compilacion y ambos implementan la misma API de estado, asi que el codigo de alto nivel no cambia. (Vulkan y DirectX quedan para mas adelante.)
-* **API grafica unificada (sin OpenGL a la vista):** toda la app dibuja a traves de `w3dEngine` (estados de render, matrices, arrays de vertices, materiales, niebla, blending, scissor, lineas y puntos...) sin llamar nunca a OpenGL directo ni depender de sus headers.
-* **Carga de texturas:** `w3dEngine::LoadTexture(path, ...)` abre una imagen del disco y la sube como textura (decodifica con stb en PC/Android e ICL en Symbian; el upload es comun). Tambien `DecodeImage` para obtener los pixeles RGBA crudos (sprites, etc.), con filtrado lineal o nearest.
-* **Sistema de luces:** clase `Light` con luces direccional, puntual y spot (cono), atenuacion configurable y componentes ambient/diffuse/specular. Hasta 8 luces por escena.
-* **Camara:** clase `CameraBase` reutilizable (posicion, orientacion por cuaternion, FOV, planos near/far) que entrega su matriz de vista y de proyeccion perspectiva al render.
-* **Sistema de log:** log de diagnostico comun a las plataformas, con tres niveles (info / warning / error). En escritorio y Symbian escribe a un archivo con su etiqueta; en WebGL cada nivel va a `console.log` / `console.warn` / `console.error`. Estilo printf y se puede apagar por completo en builds de release.
-* **Matematica:** vectores, matrices 4x4 y cuaterniones propios (C puro, compilan igual en PC y en sistemas retro).
-* **Escena y geometria:** mallas con vertices/normales/UV/color por vertice, materiales, grafo de objetos con transformaciones y jerarquia (padre/hijo), y animaciones.
+What the Core already does today:
 
-Whisk3D Core incluye los componentes fundamentales de un motor 3D, entre ellos:
+- **Supported systems:** Windows, Linux, Android, Symbian, and web browsers (WebGL). The exact same codebase runs on all of them; each platform only supplies its window/context initialization.
+- **Graphics backends:** A *fixed-function pipeline* backend (Desktop OpenGL and OpenGL ES 1.1 for Android/Symbian) and a *shader* backend (OpenGL ES 2.0 / WebGL). Selected at compile time, both implement the same state API, so high-level code remains unchanged. (Vulkan and DirectX are planned for later.)
+- **Unified graphics API (no visible OpenGL):** The entire application draws through `w3dEngine` (render states, matrices, vertex arrays, materials, fog, blending, scissor test, lines, and points...) without ever making direct OpenGL calls or depending on OpenGL headers.
+- **Texture loading:** `w3dEngine::LoadTexture(path, ...)` opens an image from disk and uploads it as a texture (decoded via stb on PC/Android and ICL on Symbian; texture upload logic is shared). Also includes `DecodeImage` to obtain raw RGBA pixels (sprites, etc.), with linear or nearest filtering.
+- **Lighting system:** `Light` class supporting directional, point, and spot lights, configurable attenuation, and ambient/diffuse/specular components. Up to 8 lights per scene.
+- **Camera:** Reusable `CameraBase` class (position, quaternion orientation, FOV, near/far clipping planes) that feeds its view and perspective projection matrices to the renderer.
+- **Logging system:** Diagnostic logging shared across platforms with three levels (info / warning / error). On desktop and Symbian, it writes to a file with tags; on WebGL, each level maps to `console.log` / `console.warn` / `console.error`. Uses a printf style and can be completely disabled in release builds.
+- **Math utilities:** Custom vectors, 4x4 matrices, and quaternions (pure C, compiles identically on PC and retro systems).
+- **Scene and geometry:** Meshes with vertices/normals/UVs/per-vertex color, materials, object graph with hierarchical transformations (parent/child), and animations.
 
-* Abstracción del pipeline de renderizado.
-* Representación de mallas y geometría.
-* Materiales y texturas.
-* Cámaras y administración de vistas.
-* Sistema de iluminación.
-* Objetos de escena y transformaciones.
-* Buffers de vértices e índices.
-* Estados básicos de renderizado.
-* Utilidades matemáticas (vectores, matrices y cuaterniones).
+Whisk3D Core includes the fundamental components of a 3D engine, including:
 
-El proyecto está diseñado para facilitar la implementación de nuevos backends gráficos (como OpenGL, OpenGL ES, WebGl, Vulkan, Direct3D, Metal o renderizadores por software) sin necesidad de modificar el código de alto nivel del motor.
+- Rendering pipeline abstraction.
+- Mesh and geometry representation.
+- Materials and textures.
+- Cameras and view management.
+- Lighting system.
+- Scene objects and transformations.
+- Vertex and index buffers.
+- Basic render states.
+- Math utilities (vectors, matrices, and quaternions).
 
-## Sus principales objetivos son:
+The project is designed to simplify the implementation of new graphics backends (such as OpenGL, OpenGL ES, WebGL, Vulkan, Direct3D, Metal, or software renderers) without requiring modifications to the engine's high-level code.
 
-* Compatibilidad multiplataforma.
-* Independencia de la API gráfica.
-* Arquitectura limpia y modular.
-* Ligero y fácil de portar.
-* Compatible con computadoras de escritorio, dispositivos móviles, sistemas embebidos y plataformas retro.
+## Its Primary Goals Are:
 
-Whisk3D Core constituye la base del motor y del editor Whisk3D, pero también puede utilizarse como un framework de renderizado independiente para otros proyectos.
+- Cross-platform compatibility.
+- Graphics API independence.
+- Clean and modular architecture.
+- Lightweight and easy to port.
+- Compatible with desktop computers, mobile devices, embedded systems, and retro platforms.
 
-El código esta bajo licencia MIT. asi que podes usuarlo en tus propios proyectos ya sean libres o comerciales. podes hacer un fork. modificarlo etc.
+Whisk3D Core forms the foundation of the Whisk3D engine and editor, but it can also be used as a standalone rendering framework for other projects.
+
+The code is under the MIT license, so you can use it in your own projects (whether open-source or commercial), fork it, modify it, etc.
