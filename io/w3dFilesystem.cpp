@@ -51,6 +51,7 @@ W3dAlmacen* W3dAlmacenMontado()      { return gAlmacenMontado; }
 
 #ifdef __ANDROID__
     #include <android/asset_manager.h> // leer recursos del APK (NO SDL)
+    #include <SDL_system.h>
 #endif
 
 #if defined(_WIN32)
@@ -636,12 +637,25 @@ namespace w3dFileSystem {
     #else
         // Linux / Android: carpetas tipicas del usuario + la raiz
         std::string h = GetHomeDir();
+    #ifdef __ANDROID__
+        const char* nombres[]   = { "Desktop", "Documents", "Download", "Pictures", "Music", "Movies" };
+    #else
         const char* nombres[]   = { "Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos" };
+    #endif
         const char* etiquetas[] = { "Escritorio", "Documentos", "Descargas", "Imagenes", "Musica", "Videos" };
         for (int i = 0; i < 6; i++) {
             std::string p = JoinPath(h, nombres[i]);
             if (EsCarpeta(p)) { Bookmark b; b.name = etiquetas[i]; b.path = p; out.push_back(b); }
         }
+    #ifdef __ANDROID__
+        const char* internal = SDL_AndroidGetInternalStoragePath();
+        if (internal && *internal) {
+            std::string templates = JoinPath(internal, "Templates");
+            if (EsCarpeta(templates)) {
+                Bookmark b; b.name = "Templates"; b.path = templates; out.push_back(b);
+            }
+        }
+    #endif
         Bookmark br; br.name = "/"; br.path = "/"; out.push_back(br);
     #endif
 
