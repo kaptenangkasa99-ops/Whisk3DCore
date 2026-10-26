@@ -1047,9 +1047,11 @@ class Mesh : public Object {
         void InvalidarEdit(); // borra 'edit' (geometria cambio)
         void RenderEditOverlay(); // dibuja el overlay de edit (hook: el cuerpo deref edit, vive en main/)
 
+#ifndef W3D_GAME_RUNTIME
         // delegan en EditMesh (los llaman SeleccionarTodo/DeseleccionarTodo/Invertir)
         void EditSeleccionarTodo(bool sel) W3D_OVERRIDE;
         void EditInvertir() W3D_OVERRIDE;
+#endif
 
         // BORRA la seleccion de Edit Mode segun el modo (SelVertex/SelEdge/SelFace):
         //  - SelFace:   borra las caras seleccionadas; mantiene sus bordes+vertices

@@ -33,6 +33,7 @@ Lo que el Core ya hace hoy:
 * **Sistema de log:** log de diagnostico comun a las plataformas, con tres niveles (info / warning / error). En escritorio y Symbian escribe a un archivo con su etiqueta; en WebGL cada nivel va a `console.log` / `console.warn` / `console.error`. Estilo printf y se puede apagar por completo en builds de release.
 * **Matematica:** vectores, matrices 4x4 y cuaterniones propios (C puro, compilan igual en PC y en sistemas retro).
 * **Escena y geometria:** mallas con vertices/normales/UV/color por vertice, materiales, grafo de objetos con transformaciones y jerarquia (padre/hijo), y animaciones.
+* **Transforms del runtime:** el juego compilado conserva el grafo de objetos como fuente de verdad, pero construye por frame arreglos contiguos de transforms locales y de mundo antes del pase 3D. Las consultas de transform durante ese pase usan el snapshot; los cambios hechos por scripts y animacion quedan reflejados al reconstruirlo en el siguiente render. El editor conserva su flujo de objetos y no activa este camino.
 
 Whisk3D Core incluye los componentes fundamentales de un motor 3D, entre ellos:
 

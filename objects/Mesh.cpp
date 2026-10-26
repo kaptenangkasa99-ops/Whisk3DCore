@@ -5,6 +5,7 @@
 #include "w3dGraphics.h"    // abstraccion de graficos del engine (sin GL)
 #include "W3dNombres.h"     // LA regla de nombres unicos (compartida por todo el editor)
 #include "CameraBase.h"     // g_renderCamPos (camara del render, para el chrome equirect)
+#include "objects/RuntimeRenderPackets.h"
 #include "RenderColors.h"   // paleta de render del CORE (sin depender de la UI)
 #include <math.h> // C puro: compila en RVCT y PC por igual
 #include <algorithm> // sort/unique: dedup de aristas del material con `lineas`
@@ -15,6 +16,187 @@
 // NOTA IMPORTANTE: mucho de este codigo NO va aca y se va a borrar/simplificar.....
 // es que hay codigo que va en el EDITOR 3d de Whisk3D y que no deberia estar en el codigo base del "core".
 // esta parte necesita una reescritura... pero necesito pensarla mejor
+
+namespace {
+std::vector<W3dRuntimeRenderPacketInfo> gRuntimeRenderPackets;
+bool gRuntimeRenderPacketsCapturing = false;
+bool gRuntimeRenderPacketsEnabled = true;
+Mesh* gRuntimeRenderPacketMesh = 0;
+size_t gRuntimeRenderPacketGroup = 0;
+bool gRuntimeRenderPacketGroupActive = false;
+
+static unsigned long long W3dRenderId(size_t value) {
+    value ^= value >> 17;
+    value *= (size_t)0x9e3779b1u;
+    value ^= value >> 13;
+    return (unsigned long long)value;
+}
+
+static unsigned long long W3dRenderQuantDepth(float depth) {
+    if (depth < -4096.0f) depth = -4096.0f;
+    if (depth > 4096.0f) depth = 4096.0f;
+    return (unsigned long long)((depth + 4096.0f) * 1023.875f);
+}
+
+static unsigned long long W3dRenderPacketKey(const W3dRuntimeRenderPacketInfo& packet,
+                                             unsigned long long material,
+                                             unsigned long long geometry,
+                                             unsigned pass) {
+    const unsigned long long depth = W3dRenderQuantDepth(packet.depth);
+    if (!packet.translucent) {
+        return ((unsigned long long)(pass & 3u) << 61) |
+               ((material & 0x3ffffull) << 43) |
+               ((geometry & 0xfffffull) << 23) |
+               (depth & 0x7fffffull);
+    }
+    const unsigned long long backToFront = 0x7fffffull - depth;
+    return (1ull << 63) |
+           ((backToFront & 0x7fffffull) << 40) |
+           ((unsigned long long)(pass & 3u) << 38) |
+           ((material & 0x3ffffull) << 20) |
+           (geometry & 0xfffffull);
+}
+
+static bool W3dRuntimeRenderPacketShouldDrawGroup(Mesh* mesh, size_t group) {
+    return !gRuntimeRenderPacketGroupActive ||
+           mesh != gRuntimeRenderPacketMesh ||
+           group == gRuntimeRenderPacketGroup;
+}
+
+struct W3dRenderPacketLess {
+    bool operator()(const W3dRuntimeRenderPacketInfo& a,
+                    const W3dRuntimeRenderPacketInfo& b) const {
+        return a.sortKey < b.sortKey;
+    }
+};
+}
+
+void W3dRuntimeRenderPacketsBegin() {
+    gRuntimeRenderPackets.clear();
+    gRuntimeRenderPacketsCapturing = true;
+}
+
+bool W3dRuntimeRenderPacketsSetCapture(bool enabled) {
+    bool previous = gRuntimeRenderPacketsCapturing;
+    gRuntimeRenderPacketsCapturing = enabled;
+    return previous;
+}
+
+bool W3dRuntimeRenderPacketsSetEnabled(bool enabled) {
+    bool previous = gRuntimeRenderPacketsEnabled;
+    gRuntimeRenderPacketsEnabled = enabled;
+    return previous;
+}
+
+bool W3dRuntimeRenderPacketsEnabled() {
+    return gRuntimeRenderPacketsEnabled;
+}
+
+bool W3dRuntimeRenderPacketsCapture(Mesh* mesh) {
+    if (!gRuntimeRenderPacketsCapturing || !mesh) return false;
+
+    const bool useGenerated = !w3dRenderNormalColor && mesh->genValido &&
+                              !mesh->genMaterialsGroup.empty();
+    const std::vector<MaterialGroup>& groups =
+        useGenerated ? mesh->genMaterialsGroup : mesh->materialsGroup;
+    if (groups.empty()) return false;
+
+    const bool keepPvsOrder = mesh->pvsOrdenado && mesh->pvsFaces;
+    Matrix4 world;
+    mesh->GetWorldMatrix(world);
+    Vector3 focus = mesh->PuntoFoco();
+    const float depth = (focus - g_renderCamPos).Dot(g_renderCamForward);
+    const size_t groupCount = keepPvsOrder ? 1 : groups.size();
+    const size_t geometryBase = mesh->vboIdx ? (size_t)mesh->vboIdx :
+                                (size_t)(useGenerated ? mesh->genFaces : mesh->faces);
+
+    for (size_t i = 0; i < groupCount; ++i) {
+        const size_t groupIndex = keepPvsOrder ? (size_t)-1 : i;
+        const MaterialGroup& group = keepPvsOrder ? groups[0] : groups[i];
+        Material* material = (!w3dRenderSolido && mesh->genValido &&
+                              i < mesh->materialsGroup.size())
+                                 ? mesh->materialsGroup[i].material
+                                 : group.material;
+        if (w3dRenderSolido) material = MaterialDefecto;
+        if (!material) material = MaterialDefecto;
+        W3dRuntimeRenderPacketInfo packet;
+        packet.mesh = mesh;
+        packet.material = material;
+        packet.world = world;
+        packet.depth = depth;
+        packet.materialGroup = groupIndex;
+        packet.indexStart = keepPvsOrder ? 0 : group.startDrawn;
+        packet.indexCount = keepPvsOrder ? mesh->pvsFacesSize : group.indicesDrawnCount;
+        unsigned sortPass = 0;
+        if (keepPvsOrder) {
+            for (size_t g = 0; g < groups.size(); ++g) {
+                Material* groupMaterial = w3dRenderSolido
+                                              ? MaterialDefecto
+                                              : ((!w3dRenderNormalColor && mesh->genValido &&
+                                                  g < mesh->materialsGroup.size())
+                                                     ? mesh->materialsGroup[g].material
+                                                     : groups[g].material);
+                if (!groupMaterial) groupMaterial = MaterialDefecto;
+                if (!w3dRenderSolido && groupMaterial) {
+                    unsigned groupPass = (unsigned)groupMaterial->orden_pasada;
+                    if (groupPass > 2u) groupPass = 2u;
+                    if (groupPass > sortPass) sortPass = groupPass;
+                }
+                if (groupMaterial &&
+                    (groupMaterial->transparent || groupMaterial->orden_pasada >= 2))
+                    packet.translucent = true;
+            }
+        } else {
+            packet.translucent = material &&
+                                 (material->transparent || material->orden_pasada >= 2);
+            if (!w3dRenderSolido && material) {
+                sortPass = (unsigned)material->orden_pasada;
+                if (sortPass > 2u) sortPass = 2u;
+            }
+        }
+
+        size_t materialId = (size_t)material;
+        if (material && material->texture)
+            materialId ^= (size_t)material->texture->iID * (size_t)0x9e3779b1u;
+        size_t geometryId = geometryBase;
+        packet.sortKey = W3dRenderPacketKey(packet, W3dRenderId(materialId),
+                                            W3dRenderId(geometryId), sortPass);
+        gRuntimeRenderPackets.push_back(packet);
+    }
+    return true;
+}
+
+void W3dRuntimeRenderPacketsFlush() {
+    gRuntimeRenderPacketsCapturing = false;
+    std::stable_sort(gRuntimeRenderPackets.begin(), gRuntimeRenderPackets.end(),
+                     W3dRenderPacketLess());
+    for (size_t i = 0; i < gRuntimeRenderPackets.size(); ++i) {
+        const W3dRuntimeRenderPacketInfo& packet = gRuntimeRenderPackets[i];
+        w3dEngine::PushMatrix();
+        w3dEngine::MultMatrix(packet.world.m);
+        const float det =
+            packet.world.m[0] * (packet.world.m[5] * packet.world.m[10] -
+                                 packet.world.m[9] * packet.world.m[6]) -
+            packet.world.m[4] * (packet.world.m[1] * packet.world.m[10] -
+                                 packet.world.m[9] * packet.world.m[2]) +
+            packet.world.m[8] * (packet.world.m[1] * packet.world.m[6] -
+                                 packet.world.m[5] * packet.world.m[2]);
+        w3dEngine::FrontFace(det >= 0.0f);
+        gRuntimeRenderPacketMesh = packet.mesh;
+        gRuntimeRenderPacketGroup = packet.materialGroup;
+        gRuntimeRenderPacketGroupActive = packet.materialGroup != (size_t)-1;
+        packet.mesh->RenderObject();
+        gRuntimeRenderPacketGroupActive = false;
+        gRuntimeRenderPacketMesh = 0;
+        w3dEngine::FrontFace(true);
+        w3dEngine::PopMatrix();
+    }
+}
+
+const W3dRuntimeRenderPacketInfo* W3dRuntimeRenderPacketsLast(size_t* count) {
+    if (count) *count = gRuntimeRenderPackets.size();
+    return gRuntimeRenderPackets.empty() ? 0 : &gRuntimeRenderPackets[0];
+}
 
 // ===================================================
 // Constructor
@@ -1312,19 +1494,27 @@ void Mesh::RenderObject() {
     // (P4) horneada en el lote estatico de una Collection ESTE frame: el lote ya
     // la dibujo en su tanda por material; aca no se dibuja nada.
     if (w3dLoteStamp && enLoteEstatico == w3dLoteStamp) return;
+#ifdef W3D_GAME_RUNTIME
+    const bool editActiva = false;
+    const bool seleccionada = false;
+    const bool activa = false;
+#else
+    const bool editActiva = ((Object*)this == g_editMesh);
+    const bool seleccionada = select;
+    const bool activa = ((Object*)this == ObjActivo);
+#endif
     // CALCOMANIA SUELTA: se anota y se dibuja al final (ver el comentario largo
     // arriba). El chequeo va ANTES de cualquier trabajo de dibujo.
-    if (!w3dDecalesInline && (Object*)this != g_editMesh && EsSoloDecal()) {
+    if (!w3dDecalesInline && !editActiva && EsSoloDecal()) {
         gDecalPend.push_back(this);
         return;
     }
     // LUZ SUELTA (chispa/halo/rayo aditivo): mismo trato. Va DESPUES del chequeo
     // de calcomania porque un decal aditivo es, antes que nada, una calcomania.
-    if (!w3dDecalesInline && (Object*)this != g_editMesh && EsSoloLuz()) {
+    if (!w3dDecalesInline && !editActiva && EsSoloLuz()) {
         gLuzPend.push_back(this);
         return;
     }
-    const bool editActiva = ((Object*)this == g_editMesh); // esta malla en Edit Mode
     // sin vertices no hay nada. Sin CARAS propias igual hay que dibujar: en Edit (edit mesh: verts+bordes), o si
     // hay malla GENERADA por modificadores (ej. Screw sobre un perfil sin caras -> la botella vive en genValido),
     // o si hay loose edges (wireframe suelto que se ve como overlay). Sino en modo objeto una malla sin caras
@@ -1332,9 +1522,12 @@ void Mesh::RenderObject() {
     if (!vertex || vertexSize <= 0) return;
     const bool hayGen = (genValido && genVertex && genFaces);
     if ((!faces || facesSize < 3) && !editActiva && !hayGen && looseEdges.empty()) return;
-    w3dEngine::g_statMeshes++; // estadistica de frame (bench): mallas que llegan a dibujarse
-    // el material por defecto SIEMPRE tiene que existir (en Symbian arranca NULL)
+    // The default material must always exist; it starts as NULL on Symbian.
     if (!MaterialDefecto) MaterialDefecto = new Material("Default", true);
+#ifdef W3D_GAME_RUNTIME
+    if (W3dRuntimeRenderPacketsCapture(this)) return;
+#endif
+    w3dEngine::g_statMeshes++; // estadistica de frame (bench): mallas que llegan a dibujarse
     namespace gfx = w3dEngine;
     // (P1) ACA vivia un gfx::Invalidate() POR MALLA: anulaba el cache ~200 veces
     // por frame y cada Enable/Disable/DepthMask/TexEnv del material volvia a ir
@@ -1437,6 +1630,7 @@ void Mesh::RenderObject() {
         // POR GRUPO de material: transparente -> textura con SOLO alpha (blend); opaco -> color plano solido
         size_t ng = useGen ? genMaterialsGroup.size() : materialsGroup.size();
         for (size_t g = 0; g < ng; g++) {
+            if (!W3dRuntimeRenderPacketShouldDrawGroup(this, g)) continue;
             const MaterialGroup& grp = useGen ? genMaterialsGroup[g] : materialsGroup[g];
             Material* mat = grp.material ? grp.material : MaterialDefecto;
             bool trans = mat->transparent && mat->texture && mat->textureOn && (useGen ? (genUV != 0) : (uv != 0));
@@ -1479,8 +1673,8 @@ void Mesh::RenderObject() {
             // sin overlays (limpieza de pantalla) cae al wireframe plano de abajo.
             RenderEditOverlay();
         } else {
-        int cid = !select ? RC_wireframe
-                          : (((Object*)this == ObjActivo) ? RC_selActive : RC_selInactive);
+        int cid = !seleccionada ? RC_wireframe
+                                : (activa ? RC_selActive : RC_selInactive);
         const float* col = gRenderColors[cid];
         if (w3dRenderWireframeSoloVisible && pvsFaces) {
             // "SOLO LO QUE SE DIBUJA" (default): con visibilidad por triangulo activa
@@ -1495,10 +1689,10 @@ void Mesh::RenderObject() {
             gfx::DisableArray(gfx::NormalArray);
             gfx::DisableArray(gfx::TexCoordArray);
             gfx::Color4f(col[0], col[1], col[2], 1.0f);
-            W3dDibujarLineasMat(pvsFaces, pvsFacesSize, select ? 2.0f : 1.0f);
+            W3dDibujarLineasMat(pvsFaces, pvsFacesSize, seleccionada ? 2.0f : 1.0f);
             gfx::Invalidate();
         } else if (!edges.empty()) {
-            RenderBordes(col, select ? 2.0f : 1.0f, false);
+            RenderBordes(col, seleccionada ? 2.0f : 1.0f, false);
         } else {
             gfx::Disable(gfx::Lighting); gfx::Disable(gfx::Texture2D);
             gfx::Disable(gfx::Blend); gfx::Disable(gfx::CullFace);
@@ -1641,6 +1835,7 @@ void Mesh::RenderObject() {
         }
         for (size_t gi = 0; gi < ng; gi++) {
             const size_t g = ordenG.empty() ? gi : ordenG[gi];
+            if (!W3dRuntimeRenderPacketShouldDrawGroup(this, g)) continue;
             const MaterialGroup& grp = useGen ? genMaterialsGroup[g] : materialsGroup[g];
             const MaterialGroup& dgrp = usePvs ? pvsGroups[g] : materialsGroup[g]; // rangos que se DIBUJAN (path no-gen)
             const MeshIndex* idxDraw = usePvs ? pvsFaces : faces;

@@ -1,4 +1,5 @@
 #include "Objects.h"
+#include "RuntimeTransforms.h"
 #include "script/W3dScript.h" // W3dScriptDatos completo (el destructor lo libera)
 #include "w3dGraphics.h" // flags de estado de render (w3dRenderLuces) — PC y Symbian
 #include "W3dNombres.h"  // LA regla de nombres unicos (una sola, compartida por todo el editor)
@@ -43,12 +44,14 @@ bool W3dDesvincularRegistrar(W3dDesvincularFn f){
 }
 
 // Variables globales
+#ifndef W3D_GAME_RUNTIME
 std::vector<Object*> ObjSelects;
 Object* CollectionActive = NULL;
 Object* ObjActivo = NULL;
 Object* g_editMesh = NULL;        // edit mode: malla activa (NULL = nadie)
 int EditSelectMode = SelVertex;   // edit mode: sub-elemento (vertex por defecto)
 std::vector<SaveState> estadoObjetos;
+#endif
 
 #ifdef W3D_SYMBIAN
 // en PC lo define ViewPort3D.cpp (todavia sin portar); SceneCollection ya
@@ -60,10 +63,14 @@ Object::Object(Object* parent, const std::string& nombre, Vector3 Pos, Vector3 R
     : Parent(parent),
       visible(true),
       renderizable(true),
+#ifndef W3D_GAME_RUNTIME
       desplegado(true),
       showRelantionshipsLines(true),
+#endif
       posadoPorCurvas(false),   // nace en reposo: nadie lo poso todavia
+#ifndef W3D_GAME_RUNTIME
       select(false), // Seleccionar() al final lo deja seleccionado
+#endif
       name(nombre),
       pos(Pos),
       scale(Scale) {
@@ -83,7 +90,10 @@ Object::Object(Object* parent, const std::string& nombre, Vector3 Pos, Vector3 R
     rot = qY * qX * qZ; // Aplicación: (Z) * (X) * (Y)
 
     serial = W3dSerialProx++;    // identidad estable: se asigna al NACER y no se reusa jamas
+    runtimeTransformHandle = (unsigned)-1;
+#ifndef W3D_GAME_RUNTIME
     constraintActivo = -1;       // stack de constraints vacio: no hay ninguno seleccionado
+#endif
     consEval = false;            // guardia de reentrada de la evaluacion (ver Objects.h)
     rotMode = RotEulerXYZ;       // default: XYZ Euler
     rotAngle = 0.0f;
@@ -107,8 +117,10 @@ Object::Object(Object* parent, const std::string& nombre, Vector3 Pos, Vector3 R
     if (!W3dNombresCargando && SceneCollection && this != SceneCollection)
         name = NombreLibre(name);
 
+#ifndef W3D_GAME_RUNTIME
     DeseleccionarTodo();
     Seleccionar();
+#endif
 }
 
 // refresca los valores de DISPLAY (rotEuler / rotAxis+rotAngle) desde 'rot'.
@@ -219,9 +231,11 @@ std::string Object::NombreConstraint(int i) const {
     return constraints[i]->nombre;
 }
 
+#ifndef W3D_GAME_RUNTIME
 void Object::SetConstraintActivo(int i){
     constraintActivo = (i >= 0 && i < (int)constraints.size()) ? i : -1;
 }
+#endif
 
 // busca por SERIAL, nunca por indice ni por puntero (ver Objects.h). NULL = ya no esta.
 W3dConstraint* Object::ConstraintPorSerial(unsigned int s) const {
@@ -283,8 +297,10 @@ void W3dCopiarConstraints(Object* dst, const Object* src){
     }
     // el seleccionado de la lista es estado de UI y viaja con el stack: si no, el panel
     // de la copia se abre en "ninguno" con la lista llena.
+#ifndef W3D_GAME_RUNTIME
     if (!dst->constraints.empty() && dst->constraintActivo < 0)
         dst->constraintActivo = (int)dst->constraints.size() - 1;
+#endif
 }
 
 // ---- LA PUERTA DE REFS: solo RUTEA (ver el bloque grande de Objects.h) ----
@@ -469,6 +485,7 @@ void Object::SetNameCrudo(const std::string& nombre) {
     name = nombre;
 }
 
+#ifndef W3D_GAME_RUNTIME
 void Object::EliminarObjetosSeleccionados(bool IncluirCollecciones) {
     for (int i = (int)Childrens.size() - 1; i >= 0; i--) {
         Object* child = Childrens[i];
@@ -480,6 +497,7 @@ void Object::EliminarObjetosSeleccionados(bool IncluirCollecciones) {
         }
     }
 }
+#endif
 
 // SetName: nombre libre para 'this' SIN escribirlo (lo escribe el caller).
 // Se conserva por compatibilidad; por dentro es la MISMA regla que SetNameObj.
@@ -487,6 +505,7 @@ std::string Object::SetName(const std::string& baseName) {
     return NombreLibre(baseName);
 }
 
+#ifndef W3D_GAME_RUNTIME
 void Object::Seleccionar(){
     ObjActivo = this;
     if (!select){
@@ -555,6 +574,7 @@ void Object::InvertirSeleccionCompleto(bool IncluirColecciones){
         Childrens[o]->InvertirSeleccionCompleto(IncluirColecciones);
     }
 }
+#endif
 
         
 void Object::Reload(){}
@@ -906,10 +926,16 @@ void Object::GetMatrixBase(Matrix4& out) const {
 //  una cuenta, y "constraint apagado" da la base BIT A BIT (ver W3dEvaluarConstraints).
 // ============================================================================
 void Object::GetMatrix(Matrix4& out) const {
+    const Matrix4* runtimeLocal = W3dRuntimeTransformLocal(this);
+    if (runtimeLocal) { out = *runtimeLocal; return; }
     // NULL = "no te traigo el mundo del padre": el que entra por aca no lo tiene, asi que si hace
     // falta el evaluador lo pide una vez. El que SI lo tiene (GetWorldMatrix, bajando la cadena)
     // llama derecho a W3dLocalEfectiva y por eso no paga la cuenta exponencial.
     W3dLocalEfectiva(this, NULL, out);
+}
+
+void Object::GetMatrixWithParentWorld(const Matrix4* parentWorld, Matrix4& out) const {
+    W3dLocalEfectiva(this, parentWorld, out);
 }
 
 void Object::RotateLocal(float pitch, float yaw, float roll){
@@ -937,6 +963,8 @@ void Object::RotateLocal(float pitch, float yaw, float roll){
 //  (la matriz efectiva depende de la vista bindeada, guardarla es publicar la respuesta de
 //  un viewport para que la lea otro). Lo que se elimina aca es trabajo REPETIDO, no estado.
 void Object::GetWorldMatrix(Matrix4& out) const {
+    const Matrix4* runtimeWorld = W3dRuntimeTransformWorld(this);
+    if (runtimeWorld) { out = *runtimeWorld; return; }
     if (!Parent) { GetMatrix(out); return; }   // top-level: su local YA es su mundo
     Matrix4 Wp;
     Parent->GetWorldMatrix(Wp);     // recursion de profundidad = la cadena, una vez cada uno
@@ -1152,6 +1180,7 @@ void SearchLoop(){
     }
 }
 
+#ifndef W3D_GAME_RUNTIME
 // Devuelve el último nodo DFS (más profundo) a partir de 'node'
 Object* GetDeepestDFS(Object* node){
     if (!node) return NULL;
@@ -1511,3 +1540,4 @@ void InvertirSeleccion(bool IncluirColecciones){
 bool HayObjetosSeleccionados(bool IncluirColecciones){
     return SceneCollection && SceneCollection->EstaSeleccionado(IncluirColecciones);
 }
+#endif

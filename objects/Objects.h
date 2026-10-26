@@ -16,7 +16,9 @@
 #include <algorithm>
 
 #include "base/crossplatform.h"       // W3D_OVERRIDE (C++03/RVCT) + MeshIndex, para las subclases de Object
+#ifndef W3D_GAME_RUNTIME
 #include "base/W3dInteractionState.h" // InteractionMode/estado (el Core NO depende del header del editor)
+#endif
 #include "objects/W3dConstraint.h"   // los constraints son una PROPIEDAD de cada objeto
 
 // Dialecto C++03 compartido (PLAN-UNIFICACION.md): este header compila tanto
@@ -34,11 +36,15 @@
     #include <iomanip>
     #include <functional>
     #include <sstream>
-    #include <GL/gl.h>
+    #ifndef W3D_GAME_RUNTIME
+        #include <GL/gl.h>
+    #endif
 #endif
 
 class Viewport3D;
+#ifndef W3D_GAME_RUNTIME
 extern Viewport3D* Viewport3DActive;
+#endif
 
 // enum class portable: ObjectType::mesh, las comparaciones y el switch
 // funcionan igual que antes en PC
@@ -76,6 +82,7 @@ struct ObjectType {
 // Forward declarations
 class Object;
 extern Object* SceneCollection;
+#ifndef W3D_GAME_RUNTIME
 extern std::vector<Object*> ObjSelects;
 extern Object* CollectionActive;
 extern Object* ObjActivo;
@@ -87,10 +94,11 @@ extern Object* ObjActivo;
 extern Object* g_editMesh;
 // sub-elemento activo en Edit Mode. El selector de la barra lo cambia; la
 // seleccion (todo/nada/invertir) y el render se refieren a esto.
-enum { SelVertex, SelEdge, SelFace };
 extern int EditSelectMode; // default SelVertex
 
 void DeseleccionarTodo(bool IncluirColecciones = false);
+#endif
+enum { SelVertex, SelEdge, SelFace };
 
 // modos de rotacion del editor. Por ahora 3 (los otros 5
 // ordenes de Euler vienen despues). El default es XYZ Euler.
@@ -106,8 +114,10 @@ class Object {
         // se VE en el viewport pero puede NO salir en el render final (la foto/
         // los pases): la marca clasica de "renderizable" de los editores 3D
         bool renderizable;
+#ifndef W3D_GAME_RUNTIME
         bool desplegado;
         bool showRelantionshipsLines;
+#endif
         // EL PLAYHEAD POSO A ESTE OBJETO alguna vez en esta sesion (lo prende W3dAplicarCurvasEnFrame
         // cuando de verdad escribe algun canal). Es ESTADO REAL, igual que Mesh::posadaPorAnim para
         // la geometria, y por el mismo motivo: al guardar hay que devolver el objeto a su cuadro base
@@ -116,7 +126,9 @@ class Object {
         // nunca aplico (el timeline no estaba en su animacion) se movia A MANO, y el guardado
         // escribia el cuadro base en vez del movimiento. Ver ReposoAnimObjetos (main/io/GuardarW3D.cpp).
         bool posadoPorCurvas;
+#ifndef W3D_GAME_RUNTIME
         bool select;
+#endif
         std::string name;
 
         // ====================================================================
@@ -143,6 +155,9 @@ class Object {
         //  son lo que el usuario re-liga renombrando, y ademas se guardan.
         // ====================================================================
         unsigned int serial;
+        // Index into the transient packed runtime transform arrays. Reassigned
+        // when the runtime snapshot is rebuilt; never serialized.
+        unsigned runtimeTransformHandle;
 
         // PALETA DE COLORES elegida por este objeto, POR NOMBRE ("" = la del
         // padre: se HEREDA subiendo por Parent). Las paletas viven a nivel
@@ -250,10 +265,8 @@ class Object {
         // nombre libre para este objeto SIN escribirlo
         std::string NombreLibre(const std::string& base);
 
+#ifndef W3D_GAME_RUNTIME
         void EliminarObjetosSeleccionados(bool IncluirCollecciones = false);
-
-        std::string SetName(const std::string& baseName);
-
         void Seleccionar();
         void Deseleccionar();
         void DeseleccionarCompleto(bool IncluirColecciones = false);
@@ -266,6 +279,8 @@ class Object {
         // cuando g_editMesh != NULL, asi NO hay logica de modo en cada plataforma.
         virtual void EditSeleccionarTodo(bool sel) { (void)sel; }
         virtual void EditInvertir() {}
+#endif
+        std::string SetName(const std::string& baseName);
 
         // ====================================================================
         //  LAS DOS TRANSFORMS: **EFECTIVA** y **BASE**
@@ -299,6 +314,7 @@ class Object {
         //  comporta bit a bit como antes de que esto existiera.
         // ====================================================================
         void GetMatrix(Matrix4& out) const;        // LOCAL efectiva (T*R*S + constraints)
+        void GetMatrixWithParentWorld(const Matrix4* parentWorld, Matrix4& out) const;
         void GetMatrixBase(Matrix4& out) const;    // LOCAL cruda (T*R*S de los campos)
         // matriz de MUNDO: GetMatrix + toda la cadena de padres (T*R*S de cada uno).
         // Es la UNICA fuente de la transform de mundo: la usan GetGlobalPosition,
@@ -356,8 +372,10 @@ class Object {
         //  float* queda apuntando a memoria liberada. Los borra ~Object.
         // ====================================================================
         std::vector<W3dConstraint*> constraints;
+#ifndef W3D_GAME_RUNTIME
         int  constraintActivo;   // el seleccionado en la lista del panel. -1 = ninguno.
                                  // Es estado de UI (como modificadorActivo): no se guarda.
+#endif
         // guardia de reentrada de la evaluacion (A copia de B y B copia de A): la
         // SEGUNDA entrada devuelve la transform base en vez de recursar para siempre.
         // 'mutable' porque GetMatrix es const y no cambia nada observable del objeto.
@@ -367,7 +385,9 @@ class Object {
         // clase (el mismo truco que Mesh::NombreModificador, ver PropList.cpp:58)
         int         ConstraintsCount() const;
         std::string NombreConstraint(int i) const;
+#ifndef W3D_GAME_RUNTIME
         void        SetConstraintActivo(int i);
+#endif
         // el UNDO no puede guardarse ni el puntero (la direccion se recicla) ni el
         // indice (Add/Remove/Move reordenan): resuelve por serial, como ModVivoEn.
         // NULL = ese constraint ya no esta -> el que pregunta no escribe nada.
@@ -498,6 +518,7 @@ void SearchLoop();
 // del grafo (lee los CAMPOS, no las matrices), la usan tanto el transform del editor
 // como los builds sin editor (el runtime de un juego linkea el importador, que la usa).
 Quaternion RotGlobalDe(Object* o);
+#ifndef W3D_GAME_RUNTIME
 Object* GetDeepestDFS(Object* node);
 Object* GetPrevDFS(Object* current);
 Object* GetNextDFS(Object* current);
@@ -512,7 +533,9 @@ struct SelectMode {
 };
 Object* GetFirstDFS();
 void changeSelect(SelectMode mode, bool IncluirColecciones = false);
+#endif
 
+#ifndef W3D_GAME_RUNTIME
 class SaveState {
     public:
         Object* obj;
@@ -527,6 +550,7 @@ class SaveState {
         SaveState() : obj(0), scale(1,1,1) {}
 };
 extern std::vector<SaveState> estadoObjetos;
+#endif
 
 // El LOCAL de un transform (T*R*S). Lo usan Object::GetMatrix y el motion trail (que arma la matriz de un objeto
 // en otro frame sin tocarlo): una sola composicion, imposible que diverjan.
@@ -611,6 +635,7 @@ bool W3dQuatDeMatriz(const Matrix4& m, Quaternion& out);
 // angulos en grados. Es el equivalente en euler de lo que hace el slerp con dot<0.
 float W3dDifAngCorta(float destino, float origen);
 
+#ifndef W3D_GAME_RUNTIME
 void ApagarLucesHijas(Object* obj);
 void SetDesplegado(bool desplegado);
 void ChangeVisibilityObj();
@@ -623,5 +648,6 @@ void SeleccionarTodoForzado(bool IncluirColecciones = false);
 // invierte la seleccion: lo seleccionado se deselecciona y viceversa (Ctrl+I)
 void InvertirSeleccion(bool IncluirColecciones = false);
 bool HayObjetosSeleccionados(bool IncluirColecciones = false);
+#endif
 
 #endif
