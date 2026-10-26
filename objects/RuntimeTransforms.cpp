@@ -92,6 +92,14 @@ int W3dRuntimeTransformsCount() {
     return (int)gRuntimeTransforms.localTransforms.size();
 }
 
+size_t W3dRuntimeTransformsMemoryBytes() {
+    const RuntimeTransformStorage& storage = gRuntimeTransforms;
+    return storage.parentIndices.capacity() * sizeof(unsigned) +
+           storage.localTransforms.capacity() * sizeof(Matrix4) +
+           storage.worldTransforms.capacity() * sizeof(Matrix4) +
+           storage.owners.capacity() * sizeof(const Object*);
+}
+
 W3dRuntimeTransformsScope::W3dRuntimeTransformsScope(Object* root) {
     W3dRuntimeTransformsBuild(root);
     W3dRuntimeTransformsActivate(true);

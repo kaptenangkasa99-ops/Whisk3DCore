@@ -1,6 +1,8 @@
 #ifndef W3D_RUNTIME_TRANSFORMS_H
 #define W3D_RUNTIME_TRANSFORMS_H
 
+#include <stddef.h>
+
 class Matrix4;
 class Object;
 
@@ -12,6 +14,7 @@ const Matrix4* W3dRuntimeTransformLocal(const Object* object);
 const Matrix4* W3dRuntimeTransformWorld(const Object* object);
 unsigned W3dRuntimeTransformParent(const Object* object);
 int W3dRuntimeTransformsCount();
+size_t W3dRuntimeTransformsMemoryBytes();
 
 class W3dRuntimeTransformsScope {
 public:

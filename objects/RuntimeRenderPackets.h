@@ -12,6 +12,7 @@ struct W3dRuntimeRenderPacketInfo {
     Material* material;
     Matrix4 world;
     unsigned long long sortKey;
+    size_t submissionOrder;
     size_t materialGroup;
     int indexStart;
     int indexCount;
@@ -19,16 +20,18 @@ struct W3dRuntimeRenderPacketInfo {
     float depth;
 
     W3dRuntimeRenderPacketInfo()
-        : mesh(0), material(0), sortKey(0), materialGroup(0),
+        : mesh(0), material(0), sortKey(0), submissionOrder(0), materialGroup(0),
           indexStart(0), indexCount(0), translucent(false), depth(0.0f) {}
 };
 
 void W3dRuntimeRenderPacketsBegin();
+void W3dRuntimeRenderPacketsSort();
 void W3dRuntimeRenderPacketsFlush();
 bool W3dRuntimeRenderPacketsCapture(Mesh* mesh);
 bool W3dRuntimeRenderPacketsSetCapture(bool enabled);
 bool W3dRuntimeRenderPacketsSetEnabled(bool enabled);
 bool W3dRuntimeRenderPacketsEnabled();
 const W3dRuntimeRenderPacketInfo* W3dRuntimeRenderPacketsLast(size_t* count);
+size_t W3dRuntimeRenderPacketsMemoryBytes();
 
 #endif

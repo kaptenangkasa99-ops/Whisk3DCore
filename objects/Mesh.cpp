@@ -20,7 +20,11 @@
 namespace {
 std::vector<W3dRuntimeRenderPacketInfo> gRuntimeRenderPackets;
 bool gRuntimeRenderPacketsCapturing = false;
+#ifdef W3D_GAME_RUNTIME
 bool gRuntimeRenderPacketsEnabled = true;
+#else
+bool gRuntimeRenderPacketsEnabled = false;
+#endif
 Mesh* gRuntimeRenderPacketMesh = 0;
 size_t gRuntimeRenderPacketGroup = 0;
 bool gRuntimeRenderPacketGroupActive = false;
@@ -66,6 +70,21 @@ static bool W3dRuntimeRenderPacketShouldDrawGroup(Mesh* mesh, size_t group) {
 struct W3dRenderPacketLess {
     bool operator()(const W3dRuntimeRenderPacketInfo& a,
                     const W3dRuntimeRenderPacketInfo& b) const {
+        if (!a.translucent && !b.translucent) {
+            const unsigned passA = (unsigned)((a.sortKey >> 61) & 3ull);
+            const unsigned passB = (unsigned)((b.sortKey >> 61) & 3ull);
+            if (passA != passB) return passA < passB;
+            if (W3dRenderQuantDepth(a.depth) == W3dRenderQuantDepth(b.depth))
+                return a.submissionOrder < b.submissionOrder;
+        } else if (a.translucent && b.translucent) {
+            const unsigned long long depthA = W3dRenderQuantDepth(a.depth);
+            const unsigned long long depthB = W3dRenderQuantDepth(b.depth);
+            if (depthA == depthB) {
+                const unsigned passA = (unsigned)((a.sortKey >> 38) & 3ull);
+                const unsigned passB = (unsigned)((b.sortKey >> 38) & 3ull);
+                if (passA == passB) return a.submissionOrder < b.submissionOrder;
+            }
+        }
         return a.sortKey < b.sortKey;
     }
 };
@@ -93,7 +112,7 @@ bool W3dRuntimeRenderPacketsEnabled() {
 }
 
 bool W3dRuntimeRenderPacketsCapture(Mesh* mesh) {
-    if (!gRuntimeRenderPacketsCapturing || !mesh) return false;
+    if (!gRuntimeRenderPacketsCapturing || !mesh || !mesh->visible) return false;
 
     const bool useGenerated = !w3dRenderNormalColor && mesh->genValido &&
                               !mesh->genMaterialsGroup.empty();
@@ -124,6 +143,7 @@ bool W3dRuntimeRenderPacketsCapture(Mesh* mesh) {
         packet.material = material;
         packet.world = world;
         packet.depth = depth;
+        packet.submissionOrder = gRuntimeRenderPackets.size();
         packet.materialGroup = groupIndex;
         packet.indexStart = keepPvsOrder ? 0 : group.startDrawn;
         packet.indexCount = keepPvsOrder ? mesh->pvsFacesSize : group.indicesDrawnCount;
@@ -166,10 +186,14 @@ bool W3dRuntimeRenderPacketsCapture(Mesh* mesh) {
     return true;
 }
 
-void W3dRuntimeRenderPacketsFlush() {
+void W3dRuntimeRenderPacketsSort() {
     gRuntimeRenderPacketsCapturing = false;
     std::stable_sort(gRuntimeRenderPackets.begin(), gRuntimeRenderPackets.end(),
                      W3dRenderPacketLess());
+}
+
+void W3dRuntimeRenderPacketsFlush() {
+    W3dRuntimeRenderPacketsSort();
     for (size_t i = 0; i < gRuntimeRenderPackets.size(); ++i) {
         const W3dRuntimeRenderPacketInfo& packet = gRuntimeRenderPackets[i];
         w3dEngine::PushMatrix();
@@ -196,6 +220,10 @@ void W3dRuntimeRenderPacketsFlush() {
 const W3dRuntimeRenderPacketInfo* W3dRuntimeRenderPacketsLast(size_t* count) {
     if (count) *count = gRuntimeRenderPackets.size();
     return gRuntimeRenderPackets.empty() ? 0 : &gRuntimeRenderPackets[0];
+}
+
+size_t W3dRuntimeRenderPacketsMemoryBytes() {
+    return gRuntimeRenderPackets.capacity() * sizeof(W3dRuntimeRenderPacketInfo);
 }
 
 // ===================================================
@@ -1524,9 +1552,7 @@ void Mesh::RenderObject() {
     if ((!faces || facesSize < 3) && !editActiva && !hayGen && looseEdges.empty()) return;
     // The default material must always exist; it starts as NULL on Symbian.
     if (!MaterialDefecto) MaterialDefecto = new Material("Default", true);
-#ifdef W3D_GAME_RUNTIME
     if (W3dRuntimeRenderPacketsCapture(this)) return;
-#endif
     w3dEngine::g_statMeshes++; // estadistica de frame (bench): mallas que llegan a dibujarse
     namespace gfx = w3dEngine;
     // (P1) ACA vivia un gfx::Invalidate() POR MALLA: anulaba el cache ~200 veces
