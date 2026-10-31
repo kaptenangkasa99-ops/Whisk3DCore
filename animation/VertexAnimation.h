@@ -63,6 +63,7 @@ class VertexAnimation {
 
         // Declaración (desde .w3d)
         std::string basePath;
+        std::string buffersArchivo;
         // defaults en el constructor de abajo (C++03)
         int frameCount;
         int proximaAnimacion;

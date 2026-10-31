@@ -1144,6 +1144,7 @@ class Mesh : public Object {
         // bloques del .w3dm que este Whisk3D no entiende (los trajo una version mas nueva) +
         // el sello de cantidades por dominio con el que se cargaron. Ver W3dAjenos arriba.
         W3dAjenos w3dmAjenos;
+        std::string w3dmArchivo;
 
         Mesh(Object* parent = NULL, Vector3 pos = Vector3(0,0,0));
 
